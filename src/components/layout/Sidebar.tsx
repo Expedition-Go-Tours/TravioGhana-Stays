@@ -1,0 +1,388 @@
+// @ts-nocheck
+// Migration marker: ported from JavaScript; props/data shapes are not annotated yet.
+// Remove this directive once the file is typed — `npm run typecheck` then enforces it.
+import { useState, useEffect, isValidElement } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useSidebarStore } from "@/stores/sidebarStore";
+import { useAuthStore } from "@/stores/authStore";
+import { mockSessionEnabled } from "@/lib/mockSession";
+import { toast } from "sonner";
+import { loadSupplierProfile } from "@/features/auth/api";
+import api from "@/lib/axios";
+import {
+  LogOut,
+  ChevronLeft,
+  ChevronDown,
+  Home,
+  Calendar,
+  BadgeCheck,
+} from "@/features/stays/icons";
+import OptimizedImage from "@/components/shared/OptimizedImage";
+import { useTeamRole } from "@/hooks/useTeamRole";
+import { describeRoles } from "@/config/teamRoles";
+import { STAYS_NAV_GROUPS } from "@/config/staysNav";
+import { LIVE_SITES } from "@/lib/platforms";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+
+function extractBusinessName(businessInfo) {
+  if (!businessInfo) return null;
+  if (typeof businessInfo === "string") {
+    try { const p = JSON.parse(businessInfo); return p.businessName || p.displayName || p.legalBusinessName || null; } catch { return null; }
+  }
+  return businessInfo.businessName || businessInfo.displayName || businessInfo.legalBusinessName || null;
+}
+
+// Dots keep the hues they always had. Only the label colours changed, and
+// that was forced rather than chosen: `text-white/70` on a white sidebar is
+// invisible. Each label now takes the hue of the dot beside it so the two
+// still read as one signal.
+const SIDEBAR_STATUS_STYLES = {
+  PENDING: { dot: "bg-amber-400", text: "text-amber-700", label: "Pending" },
+  UNDER_REVIEW: { dot: "bg-blue-400", text: "text-blue-700", label: "Under Review" },
+  APPROVED: { dot: "bg-blue-400", text: "text-blue-700", label: "Approved" },
+  ACTIVE: { dot: "bg-emerald-500", text: "text-emerald-700", label: "Verified" },
+  SUSPENDED: { dot: "bg-red-400", text: "text-red-600", label: "Suspended" },
+  REJECTED: { dot: "bg-red-400", text: "text-red-600", label: "Rejected" },
+};
+
+export default function Sidebar() {
+  const { isCollapsed, toggle, isMobileOpen, closeMobile } = useSidebarStore();
+  const user = useAuthStore((state) => state.user);
+  const supplierProfile = useAuthStore((state) => state.supplierProfile);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const logoUrl = user?.logoUrl;
+  const [fetchedLogoUrl, setFetchedLogoUrl] = useState(null);
+  const [logoLoaded, setLogoLoaded] = useState(false);
+  const [business, setBusiness] = useState(null);
+  const [logoutConfirmOpen, setShowLogoutConfirm] = useState(false);
+  // Derived state: a collapsed sidebar can never show the confirm dialog.
+  // Expressing the reset during render avoids a setState-from-effect cascade.
+  const showLogoutConfirm = logoutConfirmOpen && !isCollapsed;
+  const { hasPermission, isOwner, teamRoles, storefronts } = useTeamRole();
+
+  // Who the viewer is acting as. A team member's own account is a plain
+  // `customer` account, so testing `user.roles` alone hid the business card
+  // from every member: they were all looking at their own name and avatar
+  // instead of the business they work for.
+  const actsForSupplier =
+    Boolean(user?.roles?.includes("supplier")) || Boolean(supplierProfile) || teamRoles.length > 0;
+
+  // A member without business-profile rights still gets their own Security tab,
+  // so the card falls back to the settings root instead of a hidden tab.
+  const canEditBusiness = hasPermission("settings.business");
+
+  // "Live Site": one destination renders as a plain link, two render as a menu.
+  // An empty answer — still loading, an internal admin, or a business holding
+  // no brand roles — falls back to Travio Ghana so the control never vanishes
+  // or flickers out while /my-role is in flight.
+  const liveSites = LIVE_SITES.filter((site) => (storefronts || []).includes(site.key));
+  const siteLinks = liveSites.length ? liveSites : [LIVE_SITES[0]];
+  const liveSiteIsMenu = siteLinks.length > 1;
+
+  // The Stays workspace keeps its three sections, rendered with the portal's
+  // own group-label treatment.
+  const navGroups = STAYS_NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !item.permission || hasPermission(item.permission)),
+  })).filter((group) => group.items.length > 0);
+
+  // This card is the BUSINESS, so it must show the business whoever is signed
+  // in. `/suppliers/application/status` is resolved server-side through the
+  // supplier membership, which means a team member receives the owner's name,
+  // logo, verification status and join date — their own account is a different
+  // person with (usually) no supplier profile at all.
+  useEffect(() => {
+    // Mock mode has no backend: the seeded session is the business.
+    if (mockSessionEnabled || !actsForSupplier) return;
+    let cancelled = false;
+    loadSupplierProfile()
+      .then((profile) => { if (!cancelled) setBusiness(profile || null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [actsForSupplier]);
+
+  // Company logo is fetched directly from the backend on mount so it always
+  // reflects the server even after a fresh login/refresh (the auth store is
+  // hydrated from localStorage, which may be stale). The fetched value is also
+  // persisted so future refreshes keep it without another request each render.
+  useEffect(() => {
+    if (mockSessionEnabled || !user?.roles?.includes("supplier")) return;
+    let cancelled = false;
+    api
+      .get("/users/me", { skipGlobalErrorHandler: true })
+      .then((res) => {
+        if (cancelled) return;
+        const fresh = res.data?.data?.user;
+        if (!fresh) return;
+        const logo = fresh.logoUrl || null;
+        setFetchedLogoUrl(logo);
+        setLogoLoaded(true);
+        useAuthStore.getState().updateUser({ logoUrl: logo, createdAt: fresh.createdAt });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user?.roles]);
+
+  // Name, logo, status and join date all describe the business. A member has
+  // none of their own, so the fetched account is the first choice, the profile
+  // sign-in already resolved through the membership is the second, and the
+  // viewer's own name only stands in when there is no business at all.
+  const businessName =
+    business?.businessName ||
+    extractBusinessName(business?.businessInfo) ||
+    extractBusinessName(supplierProfile?.businessInfo) ||
+    supplierProfile?.businessName ||
+    null;
+
+  // The business logo wins over the viewer's own avatar: a team member has
+  // never uploaded one, so falling back keeps the owner unchanged.
+  const effectiveLogoUrl = business?.logoUrl || (logoLoaded ? fetchedLogoUrl : logoUrl);
+
+  const statusStyle =
+    SIDEBAR_STATUS_STYLES[
+      business?.status || business?.supplierProfile?.status || supplierProfile?.status
+    ] || null;
+
+  // "Member since" is when the business joined Travio, for every viewer.
+  const memberSince = business?.supplierSince || supplierProfile?.createdAt || user?.createdAt;
+
+  const handleLogout = async () => {
+    await useAuthStore.getState().logout();
+    navigate("/login", { replace: true });
+  };
+
+  function NavItem({ item, isCollapsed, closeMobile }: any) {
+    // Active state is computed here (not read from NavLink) so config can
+    // express `end` (exact match for workspace roots such as `/stays`) and
+    // `match` (query-aware items such as Settings → Team).
+    const isActive = item.match
+      ? item.match(location)
+      : item.end
+        ? location.pathname === item.path
+        : location.pathname === item.path || location.pathname.startsWith(item.path + "/");
+
+    // The Stays nav stores the icon component itself (so search can reuse the
+    // config with iconName strings). Icon components are forwardRef objects —
+    // `typeof` cannot tell them apart from elements, so use isValidElement.
+    const icon = isValidElement(item.icon) ? item.icon : <item.icon size={20} />;
+
+    if (item.disabled) {
+      return (
+        <button
+          onClick={() => toast.info("Coming soon")}
+          className={`relative flex items-center gap-6 w-full text-left text-slate-300 cursor-default select-none ${isCollapsed ? "justify-center px-2 py-2.5" : "px-3 py-2.5"}`}
+          title={isCollapsed ? item.label : undefined}
+        >
+          <span className="shrink-0">{icon}</span>
+          {!isCollapsed && <span className="text-sm font-medium truncate">{item.label}</span>}
+        </button>
+      );
+    }
+
+    return (
+      <NavLink
+        to={item.path}
+        end={item.end}
+        onClick={closeMobile}
+        className={() =>
+          `relative flex items-center gap-6 w-full rounded-lg text-sm font-medium transition-all duration-200 group ${
+            isActive
+              ? "bg-sidebar-hover text-sidebar-active"
+              : "text-sidebar-text hover:bg-sidebar-hover hover:text-sidebar-active"
+          } ${isCollapsed ? "justify-center px-2 py-2.5" : "px-3 py-2.5"}`
+        }
+        title={isCollapsed ? item.label : undefined}
+      >
+        {isActive && (
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[5px] h-[34px] bg-sidebar-active rounded-r-full" />
+        )}
+        <span className="shrink-0 relative">{icon}</span>
+        {!isCollapsed && (
+          <span className="truncate tracking-normal text-[15px]">{item.label}</span>
+        )}
+        {isCollapsed && (
+          <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2.5 py-1.5 bg-white text-[#333] text-xs font-medium rounded-lg shadow-lg border border-[#eaeaea] whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-[70]">
+            {item.label}
+          </div>
+        )}
+      </NavLink>
+    );
+  }
+
+  return (
+    <>
+      <aside
+        className={`fixed left-0 top-[var(--preview-banner-height)] h-[calc(100vh_-_var(--preview-banner-height))] bg-sidebar-bg border-r border-sidebar-border transition-all duration-300 z-50 flex flex-col
+          ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
+          ${isCollapsed ? "lg:w-[64px] lg:translate-x-0" : "lg:w-[270px] lg:translate-x-0"}
+          w-[260px]`}
+      >
+        {/* Live Site + collapse toggle share one row. The store control is
+            expanded-only: the 64px collapsed rail has no room for two buttons,
+            and justify-center would push them past its edges. */}
+        <div className={`flex shrink-0 ${isCollapsed ? "justify-center px-2 pt-2 pb-1" : "items-center justify-between px-3 pt-2 pb-1"}`}>
+          {!isCollapsed && (liveSiteIsMenu ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex items-center gap-1.5 text-sidebar-muted hover:text-sidebar-text hover:bg-slate-100 rounded-lg transition-all duration-200 p-1.5"
+                  title="Live Site — choose which storefront to open"
+                >
+                  <Home size={15} strokeWidth={2.5} />
+                  <span className="text-xs font-medium whitespace-nowrap">Live Site</span>
+                  <ChevronDown size={12} strokeWidth={2.5} className="opacity-70" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" sideOffset={6} className="w-60">
+                {siteLinks.map((site) => (
+                  <DropdownMenuItem
+                    key={site.key}
+                    onSelect={() => window.open(site.url, "_blank", "noopener,noreferrer")}
+                    className="gap-2.5"
+                  >
+                    <img src={site.favicon} alt="" width={16} height={16} className="shrink-0 rounded-[3px]" />
+                    <span className="text-sm">{site.name}</span>
+                    <span className="ml-auto text-[10px] text-slate-400">{site.domain}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <a
+              href={siteLinks[0].url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-sidebar-muted hover:text-sidebar-text hover:bg-slate-100 rounded-lg transition-all duration-200 p-1.5"
+              title={`Live Site — opens ${siteLinks[0].domain} in a new tab`}
+            >
+              <Home size={15} strokeWidth={2.5} />
+              <span className="text-xs font-medium whitespace-nowrap">Live Site</span>
+            </a>
+          ))}
+          <button
+            onClick={() => isMobileOpen ? closeMobile() : toggle()}
+            className="flex items-center gap-1.5 text-sidebar-muted hover:text-sidebar-text hover:bg-slate-100 rounded-lg transition-all duration-200 p-1.5"
+            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <ChevronLeft size={15} strokeWidth={2.5} className={`transition-transform duration-200 ${isCollapsed ? "rotate-180" : ""}`} />
+            {!isCollapsed && <span className="text-xs font-medium whitespace-nowrap">Collapse sidebar</span>}
+          </button>
+        </div>
+
+        {/* Profile — a plain tinted surface. The blur is gone deliberately: it
+            was only ever there to let the dark background show through. */}
+        <div
+          onClick={() =>
+            navigate(canEditBusiness ? "/stays/settings?tab=profile" : "/stays/settings")
+          }
+          className={`shrink-0 cursor-pointer ${
+            isCollapsed
+              ? "py-3 px-2"
+              : "bg-slate-50 border border-sidebar-border rounded-[18px] p-6 mx-3 mb-3"
+          }`}
+        >
+          <div className="flex flex-col items-center gap-2">
+            <div className="relative shrink-0">
+              {effectiveLogoUrl ? (
+                <div className={`${isCollapsed ? "w-9 h-9" : "w-20 h-20"} rounded-full overflow-hidden ring-[3px] ring-slate-200 shadow-[0_2px_8px_rgba(15,23,42,0.10)]`}>
+                  <OptimizedImage src={effectiveLogoUrl} width={isCollapsed ? 36 : 80} className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className={`${isCollapsed ? "w-9 h-9" : "w-20 h-20"} rounded-full bg-slate-200 flex items-center justify-center ring-[3px] ring-slate-200 shadow-[0_2px_8px_rgba(15,23,42,0.10)]`}>
+                  <span className={`${isCollapsed ? "text-sm" : "text-2xl"} font-bold text-slate-600`}>
+                    {(businessName || user?.name || "S").charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
+            </div>
+            {!isCollapsed && (
+              <div className="min-w-0 w-full text-center">
+                <p className="text-[15px] font-bold text-sidebar-text truncate leading-tight" title={businessName || user?.name}>
+                  {businessName || user?.name || "Supplier"}
+                </p>
+                {statusStyle ? (
+                  <div className="flex items-center justify-center gap-1 mt-1">
+                    {statusStyle.label === "Verified" ? (
+                      <BadgeCheck size={13} className="text-emerald-600 shrink-0" />
+                    ) : (
+                      <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
+                    )}
+                    <span className={`text-[11px] font-medium ${statusStyle.text}`}>{statusStyle.label}</span>
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-sidebar-muted block mt-1">Administrator</span>
+                )}
+                {/* A member still needs to see what they can do: the badge above
+                    describes the business, this line describes the person. The
+                    owner keeps the single "Administrator" line. */}
+                {!isOwner && (
+                  <span className="text-[11px] text-sidebar-muted block mt-1" title="Your team role">
+                    {describeRoles(teamRoles) || "Team member"}
+                  </span>
+                )}
+                {memberSince && (
+                  <div className="flex items-center justify-center gap-1 mt-2 text-xs font-normal tracking-tight text-sidebar-muted hover:text-sidebar-text transition-colors duration-200">
+                    <Calendar size={14} className="opacity-60 shrink-0" />
+                    <span>Member since {new Date(memberSince).getFullYear()}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 min-h-0 scrollbar-none">
+          {navGroups.map((group) => (
+            <div key={group.label || "main"}>
+              {group.label && !isCollapsed && (
+                <div className="px-6 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  {group.label}
+                </div>
+              )}
+              <ul className={`space-y-[2px] ${isCollapsed ? "px-2" : "px-3"}`}>
+                {group.items.map((item) => (
+                  <li key={item.path}>
+                    <NavItem item={item} isCollapsed={isCollapsed} closeMobile={closeMobile} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </nav>
+
+        {/* Sign Out */}
+        <div className={`border-t border-sidebar-border shrink-0 relative ${isCollapsed ? "p-2" : "px-3 py-2"}`}>
+          <button
+            onClick={() => setShowLogoutConfirm(!showLogoutConfirm)}
+            onBlur={() => setTimeout(() => setShowLogoutConfirm(false), 200)}
+            className={`flex items-center gap-3 w-full rounded-lg text-sm font-medium transition-all duration-200 text-sidebar-muted hover:text-red-600 hover:bg-red-50 ${isCollapsed ? "justify-center p-2" : "px-3 py-2.5"}`}
+          >
+            <LogOut size={17} />
+            {!isCollapsed && <span className="text-[15px]">Sign out</span>}
+          </button>
+          {showLogoutConfirm && (
+            <div className={`absolute bottom-full mb-2 bg-white rounded-xl shadow-xl shadow-black/10 p-3 min-w-[200px] z-[70] border border-[#eaeaea] ${isCollapsed ? "left-0" : "left-1/2 -translate-x-1/2"}`}>
+              <p className="text-xs font-medium text-[#464255] mb-2.5 text-center whitespace-nowrap">Sign out of dashboard?</p>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="flex-1 px-3 py-1.5 text-xs font-medium text-[#64748b] bg-[#f5f5f5] hover:bg-[#eaeaea] rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="flex-1 px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+                >
+                  Sign out
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </aside>
+    </>
+  );
+}

@@ -1,0 +1,837 @@
+/**
+ * Sample data for the Stays workspace while the backend endpoints are being
+ * built. It mirrors the signed-off prototype's dataset exactly, so parity
+ * screenshots of the dashboard compare 1:1.
+ *
+ * Status vocabulary: the UI shows Live / Draft / Under review / Paused, which
+ * maps onto the API's Tour-style enum when the real endpoints ship
+ * (ACTIVE → Live, DRAFT → Draft, PENDING_APPROVAL → Under review,
+ * INACTIVE → Paused). The mock keeps the display strings the prototype used.
+ */
+import { defaultPlanForRoom } from "../utils/ratePlans";
+
+/**
+ * ISO instant `days` from now — offers are seeded relative to today so their
+ * derived status (scheduled / active / expired) is stable whenever the mock
+ * is loaded, unlike the fixed dates the prototype used.
+ */
+function dayOffsetISO(days, endOfDay = false) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  if (endOfDay) date.setHours(23, 59, 59, 999);
+  else date.setHours(0, 0, 0, 0);
+  return date.toISOString();
+}
+
+/** ISO timestamp `days` from now at a fixed local time — chat threads read naturally. */
+function dayTimeISO(days, hours, minutes) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  date.setHours(hours, minutes, 0, 0);
+  return date.toISOString();
+}
+
+/** The date-part (`YYYY-MM-DD`) of `days` from now — bookings store plain dates. */
+function dayOffsetDate(days) {
+  return dayOffsetISO(days).slice(0, 10);
+}
+
+/** The prototype's default rate plan for a room (`.defaultPlan`). */
+export const defaultRatePlan = defaultPlanForRoom;
+
+const akwaabaRoom = {
+  id: "r1",
+  kind: "Deluxe Room",
+  name: "Deluxe King Room",
+  count: 6,
+  adults: 2,
+  children: 1,
+  beds: "1 king bed",
+  size: 38,
+  price: 750,
+  weekend: 850,
+  bathroom: "Private",
+  bathroomAmenities: ["Toilet paper", "Shower", "Toilet", "Hairdryer", "Free toiletries"],
+  amenities: ["Air conditioning", "Wardrobe or closet", "Towels", "Linen", "Flat-screen TV", "Desk"],
+  meal: "Breakfast included",
+};
+
+export const seedStays = {
+  properties: [
+    {
+      id: "p1",
+      name: "Akwaaba Coast Hotel",
+      type: "Hotel",
+      bookingType: "Individual rooms",
+      operating: "Open now",
+      region: "Greater Accra",
+      country: "Ghana",
+      city: "Accra",
+      address: "Labone, Accra",
+      apartment: "",
+      postcode: "",
+      lat: 5.557,
+      lng: -0.172,
+      mapAddress: "Labone, Accra, Greater Accra, Ghana",
+      gps: "",
+      landmark: "",
+      shortDescription: "",
+      description:
+        "A comfortable base for discovering Accra, with warm service and easy access to the city.",
+      status: "Live",
+      step: 10,
+      facilities: ["Air conditioning", "Free WiFi", "Flat-screen TV", "Terrace"],
+      photos: [],
+      rooms: [akwaabaRoom],
+      ratePlans: [defaultRatePlan(akwaabaRoom)],
+      start: "2026-10-01",
+      advance: "12 months",
+      // Become-a-host answers (see scripts/booking-host-crawl/STEP-MAP.md).
+      listingScope: "One property",
+      sameAddress: null,
+      propertyCount: null,
+      otherListings: [],
+      noOtherListings: false,
+      channelManager: { connected: false, name: "" },
+      services: { breakfast: "Yes", parking: "Yes, free" },
+      languages: ["English", "Twi"],
+      hostProfile: {
+        property: {
+          included: false,
+          about: "A comfortable base for discovering Accra, run by a small team that knows the city.",
+        },
+        host: { included: false, name: "", about: "" },
+        neighbourhood: { included: false, about: "" },
+        none: false,
+      },
+      // Property details (step 10)
+      sleeping: {
+        bedrooms: [{ id: "bed-1", name: "Bedroom 1", doubleBeds: 1, singleBeds: 0 }],
+        livingRoomBeds: 0,
+        otherSpacesBeds: 0,
+      },
+      maxGuests: 2,
+      excludeInfants: false,
+      bathrooms: 1,
+      children: "Welcome",
+      cots: "Not available",
+      size: "",
+      sizeUnit: "square metres",
+      bookingPreference: "instant",
+      pricePerNight: "29.00",
+      currency: "GHS",
+      promotion: true,
+      startMode: "asap",
+      calendarWindow: "365 days",
+      calendarImport: { mode: "import", url: "" },
+      longStays: null,
+      payments: { mode: "Online when they book" },
+      invoicing: { name: "Akwaaba Coast Hotel", legalName: "Akwaaba Coast Ltd", sameAddress: true, address: "" },
+      agreement: {
+        certifyBusiness: true,
+        certifyTerms: true,
+        openMonths: "18 months",
+        notReadyReason: "",
+      },
+      // Policies (the prototype's property-level rule block)
+      checkin: "14:00",
+      checkinEnd: "18:00",
+      checkoutStart: "08:00",
+      checkout: "11:00",
+      cancellation: "Flexible",
+    },
+  ],
+  bookings: [
+    {
+      id: "TG-S-20493",
+      guest: "Sarah Johnson",
+      propertyId: "p1",
+      room: "Deluxe King Room",
+      from: "2026-10-04",
+      to: "2026-10-08",
+      amount: 3000,
+      status: "Confirmed",
+      guests: 2,
+    },
+    {
+      id: "TG-S-20494",
+      guest: "Kwame Agyeman",
+      propertyId: "p1",
+      room: "Deluxe King Room",
+      from: "2026-10-10",
+      to: "2026-10-12",
+      amount: 1700,
+      status: "New",
+      guests: 2,
+    },
+    {
+      id: "TG-S-20495",
+      guest: "Rebecca Smith",
+      propertyId: "p1",
+      room: "Deluxe King Room",
+      from: "2026-10-15",
+      to: "2026-10-18",
+      amount: 2250,
+      status: "Confirmed",
+      guests: 1,
+    },
+    // Cancellation records — the reporting page's dataset. `countsTowardRate`
+    // mirrors the Experiences rule: supplier-caused cancellations count;
+    // guest-requested ones and no-shows do not.
+    {
+      id: "TG-S-20496",
+      guest: "Emily Carter",
+      propertyId: "p1",
+      room: "Deluxe King Room",
+      from: dayOffsetDate(-18),
+      to: dayOffsetDate(-15),
+      amount: 1400,
+      status: "Cancelled",
+      guests: 2,
+      reason: "Property unavailable",
+      note: "Maintenance overran — the room could not be prepared.",
+      refundAmount: 1400,
+      countsTowardRate: true,
+    },
+    {
+      id: "TG-S-20497",
+      guest: "Daniel Owusu",
+      propertyId: "p1",
+      room: "Deluxe King Room",
+      from: dayOffsetDate(-38),
+      to: dayOffsetDate(-35),
+      amount: 1800,
+      status: "Cancelled",
+      guests: 3,
+      reason: "Guest requested cancellation",
+      note: "Travel plans changed — full refund issued.",
+      refundAmount: 1800,
+      countsTowardRate: false,
+    },
+    {
+      id: "TG-S-20498",
+      guest: "Sophie Turner",
+      propertyId: "p1",
+      room: "Deluxe King Room",
+      from: dayOffsetDate(-55),
+      to: dayOffsetDate(-52),
+      amount: 950,
+      status: "Cancelled",
+      guests: 1,
+      reason: "Property unavailable",
+      note: "Double-booked by mistake — moved the guest to a partner hotel.",
+      refundAmount: 950,
+      countsTowardRate: true,
+    },
+    {
+      id: "TG-S-20499",
+      guest: "Mark Addo",
+      propertyId: "p1",
+      room: "Deluxe King Room",
+      from: dayOffsetDate(-72),
+      to: dayOffsetDate(-70),
+      amount: 700,
+      status: "No-show",
+      guests: 1,
+      reason: "Guest did not arrive",
+      note: "No contact after two reminder messages.",
+      refundAmount: 0,
+      countsTowardRate: false,
+    },
+  ],
+  // Chat threads for the Customers page — one per guest, oldest message first
+  // (the API returns the latest first for previews and the thread in order).
+  conversations: [
+    {
+      id: "conv-1",
+      type: "SUPPLIER_CUSTOMER",
+      updatedAt: dayTimeISO(0, 9, 12),
+      unreadCount: 1,
+      participants: [
+        {
+          userId: "stays-supplier",
+          user: { id: "stays-supplier", name: "Akwaaba Coast Hotel", roles: ["supplier"] },
+          lastReadAt: dayTimeISO(0, 9, 20),
+        },
+        {
+          userId: "guest-1",
+          user: {
+            id: "guest-1",
+            name: "Sarah Johnson",
+            email: "sarah.johnson@example.com",
+            phone: "+233 24 000 0001",
+            roles: ["customer"],
+          },
+          lastReadAt: dayTimeISO(-1, 18, 5),
+        },
+      ],
+      messages: [
+        {
+          id: "msg-1-1",
+          conversationId: "conv-1",
+          senderId: "guest-1",
+          sender: { id: "guest-1", name: "Sarah Johnson" },
+          content: "Is airport pickup available for my arrival?",
+          attachmentUrl: null,
+          attachmentType: null,
+          createdAt: dayTimeISO(-1, 17, 58),
+        },
+        {
+          id: "msg-1-2",
+          conversationId: "conv-1",
+          senderId: "stays-supplier",
+          sender: { id: "stays-supplier", name: "Akwaaba Coast Hotel" },
+          content: "Yes — airport pickup can be arranged for GHS 150.",
+          attachmentUrl: null,
+          attachmentType: null,
+          createdAt: dayTimeISO(-1, 18, 5),
+        },
+        {
+          id: "msg-1-3",
+          conversationId: "conv-1",
+          senderId: "guest-1",
+          sender: { id: "guest-1", name: "Sarah Johnson" },
+          content: "Great, please add it to my booking. See you on the 4th!",
+          attachmentUrl: null,
+          attachmentType: null,
+          createdAt: dayTimeISO(0, 9, 12),
+        },
+      ],
+    },
+    {
+      id: "conv-2",
+      type: "SUPPLIER_CUSTOMER",
+      updatedAt: dayTimeISO(-1, 8, 42),
+      unreadCount: 0,
+      participants: [
+        {
+          userId: "stays-supplier",
+          user: { id: "stays-supplier", name: "Akwaaba Coast Hotel", roles: ["supplier"] },
+          lastReadAt: dayTimeISO(0, 7, 30),
+        },
+        {
+          userId: "guest-2",
+          user: {
+            id: "guest-2",
+            name: "Kwame Agyeman",
+            email: "kwame.agyeman@example.com",
+            phone: "+233 20 000 0002",
+            roles: ["customer"],
+          },
+          lastReadAt: dayTimeISO(0, 8, 50),
+        },
+      ],
+      messages: [
+        {
+          id: "msg-2-1",
+          conversationId: "conv-2",
+          senderId: "guest-2",
+          sender: { id: "guest-2", name: "Kwame Agyeman" },
+          content: "Could we check in a little earlier?",
+          attachmentUrl: null,
+          attachmentType: null,
+          createdAt: dayTimeISO(-1, 8, 30),
+        },
+        {
+          id: "msg-2-2",
+          conversationId: "conv-2",
+          senderId: "stays-supplier",
+          sender: { id: "stays-supplier", name: "Akwaaba Coast Hotel" },
+          content: "Early check-in at 12:00 works — we'll have the room ready.",
+          attachmentUrl: null,
+          attachmentType: null,
+          createdAt: dayTimeISO(-1, 8, 42),
+        },
+      ],
+    },
+    {
+      id: "conv-3",
+      type: "SUPPLIER_CUSTOMER",
+      updatedAt: dayTimeISO(-2, 14, 6),
+      unreadCount: 2,
+      participants: [
+        {
+          userId: "stays-supplier",
+          user: { id: "stays-supplier", name: "Akwaaba Coast Hotel", roles: ["supplier"] },
+          lastReadAt: dayTimeISO(-2, 13, 0),
+        },
+        {
+          userId: "guest-3",
+          user: {
+            id: "guest-3",
+            name: "Rebecca Smith",
+            email: "rebecca.smith@example.com",
+            phone: "+233 55 000 0003",
+            roles: ["customer"],
+          },
+          lastReadAt: dayTimeISO(-2, 14, 10),
+        },
+      ],
+      messages: [
+        {
+          id: "msg-3-1",
+          conversationId: "conv-3",
+          senderId: "guest-3",
+          sender: { id: "guest-3", name: "Rebecca Smith" },
+          content: "Do you have parking on site?",
+          attachmentUrl: null,
+          attachmentType: null,
+          createdAt: dayTimeISO(-2, 14, 1),
+        },
+        {
+          id: "msg-3-2",
+          conversationId: "conv-3",
+          senderId: "guest-3",
+          sender: { id: "guest-3", name: "Rebecca Smith" },
+          content: "Also, is breakfast included in the rate?",
+          attachmentUrl: null,
+          attachmentType: null,
+          createdAt: dayTimeISO(-2, 14, 6),
+        },
+      ],
+    },
+  ],
+  reviews: [
+    { id: "v1", guest: "Ama B.", rating: 5, text: "Helpful staff and a lovely breakfast.", reply: "" },
+    { id: "v2", guest: "David R.", rating: 4, text: "Comfortable room and a convenient location.", reply: "" },
+  ],
+  offers: [
+    {
+      id: "offer-1",
+      name: "Weekend escape",
+      offerType: "LIMITED_TIME",
+      discountType: "PERCENTAGE",
+      discountPercentage: 15,
+      fixedDiscountValue: null,
+      startDate: dayOffsetISO(-3),
+      endDate: dayOffsetISO(30, true),
+      isActive: true,
+      capacityType: "UNLIMITED",
+      maxSpots: null,
+      spotsSold: 0,
+      timeSlotMode: "ALL_DAYS",
+      specificWeekdays: [],
+      earlyBirdAdvanceDays: 7,
+      lastMinuteWindowHours: 72,
+      promoCode: "",
+      minQuantity: null,
+      minSpendAmount: null,
+      maxRedemptionsPerCustomer: null,
+      stackable: false,
+      targets: [
+        {
+          propertyId: "p1",
+          propertyName: "Akwaaba Coast Hotel",
+          roomId: "r1",
+          roomLabel: "Deluxe King Room",
+        },
+      ],
+    },
+    {
+      id: "offer-2",
+      name: "Early bird special",
+      offerType: "EARLY_BIRD",
+      discountType: "FIXED_AMOUNT",
+      discountPercentage: 0,
+      fixedDiscountValue: 80,
+      startDate: dayOffsetISO(14),
+      endDate: dayOffsetISO(45, true),
+      isActive: true,
+      capacityType: "CAPPED",
+      maxSpots: 50,
+      spotsSold: 12,
+      timeSlotMode: "SPECIFIC_WEEKDAYS",
+      specificWeekdays: ["monday", "tuesday", "wednesday"],
+      earlyBirdAdvanceDays: 21,
+      lastMinuteWindowHours: 72,
+      promoCode: "EARLY80",
+      minQuantity: null,
+      minSpendAmount: null,
+      maxRedemptionsPerCustomer: 1,
+      stackable: false,
+      targets: [
+        { propertyId: "p1", propertyName: "Akwaaba Coast Hotel", roomId: null, roomLabel: null },
+      ],
+    },
+  ],
+  // Account — the Stays settings surface: the signed-in user, the business
+  // profile, notification preferences/recipients and tax info. Team members
+  // live under `team` below.
+  account: {
+    user: {
+      name: "Akwaaba Coast Hotel",
+      email: "stays@akwaabacoast.com",
+      phone: "+233 24 000 0000",
+      language: "en",
+      timezone: "Africa/Accra",
+      logoUrl: null,
+    },
+    business: {
+      supplierType: "ACCOMMODATION_PROVIDER",
+      businessInfo: {
+        displayName: "Akwaaba Coast Hotel",
+        description:
+          "A comfortable base for discovering Accra, with warm service and easy access to the city.",
+        address: { line1: "Labone", city: "Accra", state: "Greater Accra" },
+        country: "Ghana",
+        phoneNumber: "+233 24 000 0000",
+        website: "",
+        legalBusinessName: "Akwaaba Coast Ltd",
+        businessType: "company",
+        registrationNumber: "CS-123456789",
+        tin: "C0012345678",
+        yearEstablished: "2019",
+        instagram: "",
+        facebook: "",
+        twitter: "",
+        tiktok: "",
+        youtube: "",
+        linkedin: "",
+        whatsapp: "",
+        pinterest: "",
+        operatingHours: null,
+        supplierChoice: "sole_proprietor",
+      },
+      operatingInfo: {
+        services: ["Accommodation"],
+        regions: ["Greater Accra", "Central"],
+        tourCategories: [],
+      },
+      representativeInfo: {
+        fullName: "Ama Mensah",
+        email: "ama@akwaabacoast.com",
+        phoneNumber: "+233 24 000 0000",
+        dateOfBirth: "",
+        idType: "GHANA_CARD",
+        idNumber: "GHA-123456789-0",
+      },
+    },
+    notificationPreferences: {
+      emailNotifications: { bookings: true, reviews: true, payments: true, systemAlerts: true },
+      pushNotifications: { bookings: true, reviews: true, payments: false, systemAlerts: true },
+    },
+    notificationRecipients: [
+      {
+        id: "rec-1",
+        email: "frontdesk@akwaabacoast.com",
+        name: "Front desk",
+        status: "VERIFIED",
+        preferences: { bookings: true, reviews: false, payments: false, systemAlerts: true },
+      },
+      {
+        id: "rec-2",
+        email: "accounts@akwaabacoast.com",
+        name: "Accounts",
+        status: "PENDING",
+        preferences: { bookings: true, reviews: true, payments: true, systemAlerts: true },
+      },
+    ],
+    taxInfo: {
+      taxId: "C0012345678",
+      taxCountry: "GH",
+      legalBusinessName: "Akwaaba Coast Ltd",
+      businessType: "company",
+    },
+  },
+  team: [
+    {
+      id: "tm-1",
+      email: "kwesi@akwaabacoast.com",
+      name: "Kwesi Boateng",
+      roles: ["editor"],
+      status: "ACTIVE",
+      joinedAt: dayTimeISO(-40, 9, 0),
+    },
+    {
+      id: "tm-2",
+      email: "adjoa@akwaabacoast.com",
+      name: "Adjoa Sarpong",
+      roles: ["support"],
+      status: "ACTIVE",
+      joinedAt: dayTimeISO(-12, 14, 0),
+    },
+    {
+      id: "tm-3",
+      email: "finance@akwaabacoast.com",
+      name: "",
+      roles: ["finance"],
+      status: "PENDING",
+      invitedAt: dayTimeISO(-1, 11, 0),
+    },
+  ],
+  /** `${roomId}|${date}` → { price, count, closed, minStay } */
+  overrides: {},
+  payoutMethod: "Bank transfer",
+  // Notifications — the Stays twin of the shared inbox: booking, review,
+  // payout, message and listing events, each pointing at a Stays route.
+  notifications: [
+    {
+      id: "notif-1",
+      type: "BOOKING_AWAITING_CONFIRMATION",
+      title: "New booking request",
+      message: "Kwame Agyeman requested 2 nights at Akwaaba Coast Hotel (TG-S-20494).",
+      data: {
+        bookingId: "TG-S-20494",
+        bookingNumber: "TG-S-20494",
+        propertyName: "Akwaaba Coast Hotel",
+      },
+      read: false,
+      createdAt: dayTimeISO(0, 8, 45),
+    },
+    {
+      id: "notif-2",
+      type: "NEW_MESSAGE",
+      title: "New message from Sarah Johnson",
+      message: "Great, please add it to my booking. See you on the 4th!",
+      data: { conversationId: "conv-1", senderId: "guest-1", conversationType: "SUPPLIER_CUSTOMER" },
+      read: false,
+      createdAt: dayTimeISO(0, 9, 12),
+    },
+    {
+      id: "notif-3",
+      type: "PAYOUT_PROCESSED",
+      title: "Payout processed",
+      message: "GHS 5,200.00 is on its way to your Ecobank account.",
+      data: { payoutId: "payout-1" },
+      read: false,
+      createdAt: dayTimeISO(-1, 16, 20),
+    },
+    {
+      id: "notif-4",
+      type: "REVIEW_RECEIVED",
+      title: "New 5-star review",
+      message: "Ama B. left a review on Akwaaba Coast Hotel.",
+      data: { reviewId: "v1" },
+      read: true,
+      createdAt: dayTimeISO(-2, 11, 5),
+    },
+    {
+      id: "notif-5",
+      type: "BOOKING_CONFIRMED",
+      title: "Booking confirmed",
+      message: "Rebecca Smith's stay (TG-S-20495) is confirmed.",
+      data: { bookingId: "TG-S-20495" },
+      read: true,
+      createdAt: dayTimeISO(-3, 14, 30),
+    },
+    {
+      id: "notif-6",
+      type: "STAY_SUBMITTED",
+      title: "Listing submitted for review",
+      message: "Akwaaba Coast Hotel was submitted and is being reviewed.",
+      data: { propertyId: "p1" },
+      read: true,
+      createdAt: dayTimeISO(-5, 10, 0),
+    },
+  ],
+  // Verification — the Stays twin of the supplier verification payload: the
+  // supplier-level document checklist plus one entry per property with its own
+  // documents (ownership, GTA certificate, utilities).
+  verification: {
+    profile: {
+      supplierType: "ACCOMMODATION_PROVIDER",
+      documents: [
+        {
+          id: "vd-1",
+          type: "GHANA_CARD",
+          ownerType: "SUPPLIER",
+          ownerId: null,
+          status: "APPROVED",
+          url: "https://example.com/docs/ghana-card.pdf",
+          fileName: "ghana-card.pdf",
+          expiryDate: null,
+          reviewNote: null,
+          uploadedAt: dayTimeISO(-30, 10, 0),
+        },
+        {
+          id: "vd-2",
+          type: "BUSINESS_CERTIFICATE",
+          ownerType: "SUPPLIER",
+          ownerId: null,
+          status: "APPROVED",
+          url: "https://example.com/docs/business-certificate.pdf",
+          fileName: "business-certificate.pdf",
+          expiryDate: null,
+          reviewNote: null,
+          uploadedAt: dayTimeISO(-30, 10, 5),
+        },
+        {
+          id: "vd-3",
+          type: "GTA_CERTIFICATE",
+          ownerType: "SUPPLIER",
+          ownerId: null,
+          status: "PENDING",
+          url: "",
+          fileName: "gta-certificate.pdf",
+          expiryDate: dayOffsetDate(320),
+          reviewNote: null,
+          uploadedAt: dayTimeISO(-2, 9, 0),
+        },
+        {
+          id: "pd-1",
+          type: "PROPERTY_OWNERSHIP",
+          ownerType: "PROPERTY",
+          ownerId: "p1",
+          status: "APPROVED",
+          url: "https://example.com/docs/ownership.pdf",
+          fileName: "ownership.pdf",
+          expiryDate: null,
+          reviewNote: null,
+          uploadedAt: dayTimeISO(-28, 15, 30),
+        },
+        {
+          id: "pd-2",
+          type: "GTA_PROPERTY_CERTIFICATE",
+          ownerType: "PROPERTY",
+          ownerId: "p1",
+          status: "REPLACEMENT_REQUESTED",
+          url: "",
+          fileName: "property-gta.jpg",
+          expiryDate: dayOffsetDate(290),
+          reviewNote: "The certificate photo is blurry — upload a clearer copy.",
+          uploadedAt: dayTimeISO(-3, 12, 0),
+        },
+      ],
+      properties: [
+        {
+          id: "p1",
+          name: "Akwaaba Coast Hotel",
+          city: "Accra",
+          region: "Greater Accra",
+          status: "PENDING",
+        },
+      ],
+    },
+    requirements: {
+      documents: [
+        {
+          type: "GHANA_CARD",
+          label: "Ghana Card",
+          detail:
+            "Upload one Ghana Card, passport or another accepted government-issued ID. Your details should match the information on your profile.",
+          required: true,
+          timing: "upfront",
+          enforced: true,
+        },
+        {
+          type: "BUSINESS_CERTIFICATE",
+          label: "Business registration certificate",
+          detail:
+            "Upload your business registration certificate so we can confirm the business behind this supplier account.",
+          required: true,
+          timing: "upfront",
+          enforced: true,
+        },
+        {
+          type: "GTA_CERTIFICATE",
+          label: "Ghana Tourism Authority certificate",
+          detail:
+            "Required for accommodation providers before your property becomes bookable.",
+          required: true,
+          timing: "later",
+          enforced: false,
+        },
+        {
+          type: "PROOF_OF_ADDRESS",
+          label: "Proof of address",
+          detail: "A recent utility bill or bank statement in the business name.",
+          required: true,
+          timing: "later",
+          enforced: false,
+        },
+      ],
+      propertyDocuments: [
+        {
+          type: "PROPERTY_OWNERSHIP",
+          label: "Ownership or lease",
+          detail: "Ownership document or lease agreement for the property.",
+          required: true,
+          timing: "per_property",
+          ownerType: "PROPERTY",
+        },
+        {
+          type: "GTA_PROPERTY_CERTIFICATE",
+          label: "Property GTA certificate",
+          detail: "The GTA classification certificate for this property.",
+          required: true,
+          timing: "per_property",
+          ownerType: "PROPERTY",
+        },
+        {
+          type: "UTILITY_BILL",
+          label: "Utility bill",
+          detail: "A recent utility bill showing the property address.",
+          required: true,
+          timing: "per_property",
+          ownerType: "PROPERTY",
+        },
+      ],
+      properties: "required",
+      vehicles: "hidden",
+      guides: "hidden",
+      documentationGraceDays: 30,
+      documentationDeadline: dayOffsetISO(21),
+    },
+  },
+  // Finance — payouts, methods, refund requests and the cancellation-fee
+  // ledger. Earnings rows are derived from the bookings at read time.
+  finance: {
+    payoutSettings: {
+      cycle: "TWICE_MONTHLY",
+      autoRunsEnabled: true,
+      hasVerifiedPayoutMethod: true,
+    },
+    payoutMethods: [
+      {
+        id: "pm-1",
+        type: "BANK_TRANSFER",
+        isDefault: true,
+        verified: true,
+        status: "VERIFIED",
+        bankName: "Ecobank Ghana",
+        accountName: "Akwaaba Coast Ltd",
+        accountNumber: "1400123456789",
+        country: "GH",
+        currency: "USD",
+        createdAt: dayOffsetISO(-90),
+      },
+    ],
+    payoutRequests: [
+      {
+        id: "pr-1",
+        requestNumber: "PR-2026-001",
+        amount: 1530,
+        currency: "USD",
+        bookingCount: 2,
+        status: "IN_REVIEW",
+        cycleLabel: "1–15 Oct",
+        reference: "",
+        createdAt: dayOffsetISO(-2),
+        completedAt: null,
+        rejectedReason: "",
+        autoGenerated: true,
+        method: "BANK TRANSFER",
+      },
+    ],
+    disputes: [
+      {
+        id: "dsp-1",
+        disputeNumber: "RF-2026-001",
+        reason: "SERVICE_NOT_PROVIDED",
+        description: "The room was not ready when the guest arrived.",
+        status: "OPEN",
+        resolution: "",
+        refundAmount: 350,
+        createdAt: dayOffsetISO(-5),
+        resolvedAt: null,
+        bookingId: "TG-S-20496",
+        bookingNumber: "TG-S-20496",
+        propertyTitle: "Akwaaba Coast Hotel",
+        travelDate: dayOffsetDate(-18),
+        grossAmount: 1400,
+        currency: "USD",
+      },
+    ],
+    claims: [],
+  },
+};

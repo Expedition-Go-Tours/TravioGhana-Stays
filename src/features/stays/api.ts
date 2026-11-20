@@ -1,0 +1,282 @@
+// @ts-nocheck
+// Migration marker: ported from JavaScript; props/data shapes are not annotated yet.
+// Remove this directive once the file is typed — `npm run typecheck` then enforces it.
+/**
+ * Stays workspace API.
+ *
+ * Every function resolves to already-unwrapped data (the convention used by
+ * `features/finance/api.js` and friends) and reads either from:
+ *
+ *   - the in-feature mock dataset (`features/stays/mock`), or
+ *   - the live supplier API,
+ *
+ * decided by `config.stays.dataSource` (`VITE_STAYS_DATA_SOURCE`). The live
+ * endpoint paths and response shapes below ARE the backend contract; the mock
+ * mirrors them function-for-function, so flipping the switch is a config
+ * change, never a page change.
+ *
+ * The live calls intentionally use `skipGlobalErrorHandler` — pages surface
+ * their own error states with retry, the same pattern as the products list.
+ */
+import api from "@/lib/axios";
+import { config } from "@/config";
+import { staysMock } from "./mock/store";
+
+export const staysUsesMockData = config.stays.dataSource !== "api";
+
+const BASE = "/stays/supplier";
+
+/* ── Query keys ──────────────────────────────────────────────────────────── */
+export const STAYS_KEYS = {
+  dashboard: ["stays", "dashboard"],
+  properties: (filters = {}) => ["stays", "properties", filters],
+  property: (id) => ["stays", "property", id],
+  bookings: (filters = {}) => ["stays", "bookings", filters],
+  availability: (propertyId, from, to) => ["stays", "availability", propertyId, from, to],
+  offers: (filter = "All") => ["stays", "offers", filter],
+  reviews: (filter = "All") => ["stays", "reviews", filter],
+  analytics: (period) => ["stays", "analytics", period],
+  cancellation: (days, propertyId) => ["stays", "cancellation", days, propertyId || "all"],
+  cancellationRecords: (filters = {}) => ["stays", "cancellation", "records", filters],
+};
+
+const requestConfig = { skipGlobalErrorHandler: true };
+
+/* ── Dashboard ───────────────────────────────────────────────────────────── */
+export async function fetchStaysDashboard() {
+  if (staysUsesMockData) return staysMock.getDashboard();
+  const res = await api.get(`${BASE}/dashboard`, requestConfig);
+  return res.data?.data;
+}
+
+/* ── Properties ──────────────────────────────────────────────────────────── */
+export async function listProperties(params = {}) {
+  if (staysUsesMockData) return staysMock.listProperties(params);
+  const res = await api.get(`${BASE}/properties`, { ...requestConfig, params });
+  return res.data?.data?.properties || [];
+}
+
+export async function getProperty(id) {
+  if (staysUsesMockData) return staysMock.getProperty(id);
+  const res = await api.get(`${BASE}/properties/${id}`, requestConfig);
+  return res.data?.data?.property;
+}
+
+export async function createProperty(payload) {
+  if (staysUsesMockData) return staysMock.createProperty(payload);
+  const res = await api.post(`${BASE}/properties`, payload, requestConfig);
+  return res.data?.data?.property;
+}
+
+export async function updateProperty(id, patch) {
+  if (staysUsesMockData) return staysMock.updateProperty(id, patch);
+  const res = await api.patch(`${BASE}/properties/${id}`, patch, requestConfig);
+  return res.data?.data?.property;
+}
+
+export async function submitProperty(id) {
+  if (staysUsesMockData) return staysMock.submitProperty(id);
+  const res = await api.post(`${BASE}/properties/${id}/submit-for-review`, {}, requestConfig);
+  return res.data?.data?.property;
+}
+
+export async function deleteProperty(id) {
+  if (staysUsesMockData) return staysMock.deleteProperty(id);
+  const res = await api.delete(`${BASE}/properties/${id}`, requestConfig);
+  return res.data?.data;
+}
+
+function dataUrlToBlob(dataUrl) {
+  const [meta, base64] = String(dataUrl).split(',');
+  const mime = /data:([^;]+)/.exec(meta)?.[1] || 'image/jpeg';
+  const binary = atob(base64 || '');
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new Blob([bytes], { type: mime });
+}
+
+export async function addPropertyPhotos(id, dataUrls) {
+  if (staysUsesMockData) return staysMock.addPhotos(id, dataUrls);
+
+  // Live: the builder already holds data URLs (it reads files in the browser).
+  // Convert them back to Blobs and send multipart — a 5-photo batch can exceed
+  // the backend's JSON body limit, and multipart streams straight to Cloudinary.
+  const allDataUrls = Array.isArray(dataUrls)
+    && dataUrls.every((value) => typeof value === 'string' && value.startsWith('data:image/'));
+
+  if (!allDataUrls) {
+    const res = await api.post(`${BASE}/properties/${id}/photos`, { photos: dataUrls }, requestConfig);
+    return res.data?.data?.photos || [];
+  }
+
+  const form = new FormData();
+  dataUrls.forEach((dataUrl, index) => {
+    const blob = dataUrlToBlob(dataUrl);
+    const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+    form.append('photos', blob, `property-${index}.${ext}`);
+  });
+
+  // Let the browser set the multipart boundary; do not set Content-Type here.
+  const res = await api.post(`${BASE}/properties/${id}/photos`, form, requestConfig);
+  return res.data?.data?.photos || [];
+}
+
+export async function removePropertyPhoto(id, index) {
+  if (staysUsesMockData) return staysMock.removePhoto(id, index);
+  const res = await api.delete(`${BASE}/properties/${id}/photos/${index}`, requestConfig);
+  return res.data?.data?.photos || [];
+}
+
+/* ── Rate plans ─────────────────────────────────────────────────────────── */
+export async function saveRatePlan(propertyId, plan) {
+  if (staysUsesMockData) return staysMock.saveRatePlan(propertyId, plan);
+  const res = plan.id
+    ? await api.patch(`${BASE}/properties/${propertyId}/rate-plans/${plan.id}`, plan, requestConfig)
+    : await api.post(`${BASE}/properties/${propertyId}/rate-plans`, plan, requestConfig);
+  return res.data?.data?.property;
+}
+
+export async function deleteRatePlan(propertyId, planId) {
+  if (staysUsesMockData) return staysMock.deleteRatePlan(propertyId, planId);
+  const res = await api.delete(`${BASE}/properties/${propertyId}/rate-plans/${planId}`, requestConfig);
+  return res.data?.data?.property;
+}
+
+/* ── Availability ────────────────────────────────────────────────────────── */
+export async function getAvailability(propertyId, { from, to } = {}) {
+  if (staysUsesMockData) return staysMock.getAvailability(propertyId, { from, to });
+  const res = await api.get(`${BASE}/properties/${propertyId}/availability`, {
+    ...requestConfig,
+    params: { from, to },
+  });
+  return res.data?.data;
+}
+
+export async function setAvailabilityCell(propertyId, { roomId, date, values }) {
+  if (staysUsesMockData) return staysMock.setAvailabilityCell(propertyId, { roomId, date, values });
+  const res = await api.put(
+    `${BASE}/properties/${propertyId}/availability`,
+    { roomId, date, ...values },
+    requestConfig,
+  );
+  return res.data?.data;
+}
+
+/** Removes the room/date override so the room's defaults apply again. */
+export async function clearAvailabilityCell(propertyId, { roomId, date }) {
+  if (staysUsesMockData) return staysMock.clearAvailabilityCell(propertyId, { roomId, date });
+  const res = await api.delete(`${BASE}/properties/${propertyId}/availability`, {
+    ...requestConfig,
+    params: { roomId, date },
+  });
+  return res.data?.data;
+}
+
+/* ── Bookings ────────────────────────────────────────────────────────────── */
+export async function listStaysBookings(params = {}) {
+  if (staysUsesMockData) return staysMock.listBookings(params);
+  const res = await api.get(`${BASE}/bookings`, { ...requestConfig, params });
+  return res.data?.data?.bookings || [];
+}
+
+export async function updateBookingStatus(id, status) {
+  if (staysUsesMockData) return staysMock.updateBookingStatus(id, status);
+  const res = await api.patch(`${BASE}/bookings/${id}/status`, { status }, requestConfig);
+  return res.data?.data?.booking;
+}
+
+export async function createStayBooking(payload) {
+  if (staysUsesMockData) return staysMock.createBooking(payload);
+  const res = await api.post(`${BASE}/bookings`, payload, requestConfig);
+  return res.data?.data?.booking;
+}
+
+/* ── Offers ──────────────────────────────────────────────────────────────── */
+export async function listOffers(params = {}) {
+  if (staysUsesMockData) return staysMock.listOffers(params);
+  const res = await api.get(`${BASE}/offers`, { ...requestConfig, params });
+  return res.data?.data?.offers || [];
+}
+
+export async function getOffer(id) {
+  if (staysUsesMockData) return staysMock.getOffer(id);
+  const res = await api.get(`${BASE}/offers/${id}`, requestConfig);
+  return res.data?.data?.offer;
+}
+
+export async function saveOffer(offer) {
+  if (staysUsesMockData) return staysMock.saveOffer(offer);
+  const res = offer.id
+    ? await api.patch(`${BASE}/offers/${offer.id}`, offer, requestConfig)
+    : await api.post(`${BASE}/offers`, offer, requestConfig);
+  return res.data?.data?.offers || [];
+}
+
+export async function toggleOffer(id) {
+  if (staysUsesMockData) return staysMock.toggleOffer(id);
+  const res = await api.post(`${BASE}/offers/${id}/toggle`, {}, requestConfig);
+  return res.data?.data?.offer;
+}
+
+export async function deleteOffer(id) {
+  if (staysUsesMockData) return staysMock.deleteOffer(id);
+  const res = await api.delete(`${BASE}/offers/${id}`, requestConfig);
+  return res.data?.data;
+}
+
+/* ── Reviews ─────────────────────────────────────────────────────────────── */
+export async function listStaysReviews(params = {}) {
+  if (staysUsesMockData) return staysMock.listReviews(params);
+  const res = await api.get(`${BASE}/reviews`, { ...requestConfig, params });
+  return res.data?.data?.reviews || [];
+}
+
+export async function replyToStaysReview(id, reply) {
+  if (staysUsesMockData) return staysMock.replyToReview(id, reply);
+  const res = await api.post(`${BASE}/reviews/${id}/reply`, { reply }, requestConfig);
+  return res.data?.data?.review;
+}
+
+/* ── Reporting ───────────────────────────────────────────────────────────── */
+export async function fetchCancellationSummary(params = {}) {
+  if (staysUsesMockData) return staysMock.getCancellationSummary(params);
+  const res = await api.get(`${BASE}/cancellation`, { ...requestConfig, params });
+  return res.data?.data;
+}
+
+export async function fetchCancellationRecords(params = {}) {
+  if (staysUsesMockData) return staysMock.listCancellationRecords(params);
+  const res = await api.get(`${BASE}/cancellation/records`, { ...requestConfig, params });
+  const payload = res.data?.data || {};
+  return {
+    records: payload.records || [],
+    pagination: payload.pagination || null,
+  };
+}
+
+export async function fetchStaysAnalytics(params = {}) {
+  if (staysUsesMockData) return staysMock.getAnalytics(params);
+  const res = await api.get(`${BASE}/analytics`, { ...requestConfig, params });
+  return res.data?.data;
+}
+
+export async function fetchStaysAnalyticsSummary() {
+  if (staysUsesMockData) return staysMock.getAnalyticsSummary();
+  const res = await api.get(`${BASE}/analytics/summary`, requestConfig);
+  return res.data?.data || null;
+}
+
+export async function fetchStaysPropertyAnalytics() {
+  if (staysUsesMockData) return staysMock.getPropertyAnalytics();
+  const res = await api.get(`${BASE}/analytics/properties`, requestConfig);
+  return res.data?.data?.properties || [];
+}
+
+export async function fetchStaysMonthlyRevenue(months = 12) {
+  if (staysUsesMockData) return staysMock.getMonthlyRevenue({ months });
+  const res = await api.get(`${BASE}/analytics/monthly-revenue`, {
+    ...requestConfig,
+    params: { months },
+  });
+  return res.data?.data?.months || [];
+}
