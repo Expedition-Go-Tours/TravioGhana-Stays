@@ -1,11 +1,4 @@
 # ---------------------------------------------------------------------------
-# Local reference material — must never be committed
-# ---------------------------------------------------------------------------
-# Full supplier application kept on disk purely as a design/build reference
-# while this project is being built. Not part of this codebase.
-/TravioGhana-Supplier-staging/
-
-# ---------------------------------------------------------------------------
 # macOS
 # ---------------------------------------------------------------------------
 .DS_Store
