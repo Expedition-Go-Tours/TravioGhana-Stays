@@ -1,0 +1,27 @@
+{
+  "rewrites": [
+    {
+      "source": "/confirm/:token",
+      "destination": "https://api.travioghana.com/api/suppliers/settings/notification-recipients/verify?token=:token"
+    },
+    {
+      "source": "/unsubscribe/:id/:token",
+      "destination": "https://api.travioghana.com/api/suppliers/settings/notification-recipients/unsubscribe?id=:id&token=:token"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}
