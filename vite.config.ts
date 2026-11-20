@@ -52,7 +52,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       noClientSerpKeyPlugin(),
-      isProduction && visualizer({
+      isProduction && process.env.ANALYZE === 'true' && visualizer({
         filename: './dist/stats.html',
         open: false,
         gzipSize: true,
@@ -65,7 +65,9 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      sourcemap: isProduction ? 'hidden' : true,
+      // Never publish source maps from a production build: they expose the
+      // full source of an authenticated supplier app.
+      sourcemap: !isProduction,
       outDir: 'dist',
       minify: isProduction ? 'terser' : false,
       terserOptions: isProduction ? {
