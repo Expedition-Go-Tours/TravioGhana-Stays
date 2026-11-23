@@ -1146,17 +1146,23 @@ export const staysMock = {
     };
   },
 
-  async createPayoutRequest() {
+  async createPayoutRequest(payload = {}) {
     await delay();
     const eligible = financeEarnings().filter((row) => row.payoutStatus === "ELIGIBLE");
-    const amount = eligible.reduce((total, row) => total + row.supplierPayout, 0);
+    const fallbackAmount = eligible.reduce((total, row) => total + row.supplierPayout, 0);
+    // Respect an explicit request (amount and/or selected bookings); the
+    // dashboard's "request all eligible" button sends `{}` and still works.
+    const amount = typeof payload?.amount === "number" ? payload.amount : fallbackAmount;
+    const bookingCount = Array.isArray(payload?.bookingIds) ? payload.bookingIds.length : eligible.length;
     db.finance.payoutRequests = db.finance.payoutRequests || [];
     db.finance.payoutRequests.unshift({
       id: uid("pr"),
       requestNumber: `PR-2026-${String(db.finance.payoutRequests.length + 2).padStart(3, "0")}`,
       amount,
       currency: "USD",
-      bookingCount: eligible.length,
+      bookingCount,
+      methodId: payload?.methodId ?? null,
+      note: payload?.note ?? "",
       status: "IN_REVIEW",
       cycleLabel: "the current fortnight",
       reference: "",
@@ -1311,9 +1317,19 @@ export const staysMock = {
     return { ok: true };
   },
 
-  async getSupplierClaims() {
+  async getSupplierClaims(status) {
     await delay();
-    return clone(db.finance?.claims || []);
+    const rows = db.finance?.claims || [];
+    if (!status) return clone(rows);
+    // The UI filters on comma-separated status sets ("OPEN,UNDER_REVIEW"), the
+    // same way the API receives them. Ignoring the argument made every filter
+    // look identical to "All".
+    const wanted = String(status)
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    if (wanted.length === 0) return clone(rows);
+    return clone(rows.filter((row) => wanted.includes(row.status)));
   },
 
   async approveClaim(id) {
