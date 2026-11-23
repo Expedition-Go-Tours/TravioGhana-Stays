@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Bell, Check, Loader2, ArrowRight } from "@/features/stays/icons";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { useChatFloatingStore } from "@/stores/chatFloatingStore";
+import { HEADER_ICON_BUTTON } from "@/components/layout/shell";
 import { formatDate } from "@/lib/utils";
 import { STAYS_NOTIFICATION_TYPES } from "../../notifications/constants";
 import {
@@ -91,11 +91,14 @@ export default function StaysNotificationBell() {
     if (notification.backendType === "NEW_MESSAGE") {
       // Route by conversation type: customer messages go to full-page chat,
       // admin/support messages go to the floating bubble.
+      // Guest conversations open in the inbox. Admin and support threads have
+      // no in-app view here, so they fall back to the notification's own link,
+      // or the notifications page.
       const convType = notification.data?.conversationType;
       if (convType === "SUPPLIER_CUSTOMER") {
         navigate(`/stays/customers?conversation=${notification.data?.conversationId}`);
       } else {
-        useChatFloatingStore.getState().open(notification.data?.conversationId);
+        navigate(notification.action || "/stays/notifications");
       }
       return;
     }
@@ -114,13 +117,13 @@ export default function StaysNotificationBell() {
       <button
         type="button"
         onClick={togglePanel}
-        aria-label="Notifications"
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount > 99 ? "99+" : unreadCount} unread` : "Notifications"}
         aria-expanded={open}
-        className="relative p-2 text-slate-500 hover:text-slate-800 hover:bg-emerald-50 rounded-lg transition-colors"
+        className={HEADER_ICON_BUTTON}
       >
-        <Bell size={20} />
+        <Bell size={22} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
+          <span className="absolute right-1 top-1 min-w-[18px] h-[18px] px-1 bg-danger-fill text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-surface">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -134,7 +137,7 @@ export default function StaysNotificationBell() {
             initial="initial"
             animate="animate"
             exit="exit"
-            className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl border border-emerald-100/60 shadow-lg shadow-emerald-900/5 z-50 overflow-hidden"
+            className="fixed inset-x-3 top-[calc(var(--preview-banner-height)+4.25rem)] z-(--z-popover) overflow-hidden rounded-card border border-hairline bg-surface-raised shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96"
           >
             <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-emerald-50">
               <div>

@@ -158,7 +158,7 @@ describe("PropertyDetailsView", () => {
     expect(overview.getByText("4")).toBeTruthy();
     expect(overview.getByText("2")).toBeTruthy();
     expect(overview.getByText("80 square metres")).toBeTruthy();
-    expect(overview.getByText("GHS 750")).toBeTruthy();
+    expect(overview.getByText("GHS 750.00")).toBeTruthy();
   });
 
   it("places listing and booking settings directly after About this property", () => {

@@ -1,24 +1,18 @@
+import type { LabelHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
-/**
- * FormLabel component for form field labels
- */
-export default function FormLabel({ 
-  required = false, 
-  className, 
-  children,
-  ...props 
-}) {
+type FormLabelProps = LabelHTMLAttributes<HTMLLabelElement> & { required?: boolean };
+
+/** A form label; the asterisk marks required fields visually. */
+export default function FormLabel({ required = false, className, children, ...props }: FormLabelProps) {
   return (
-    <label
-      className={cn(
-        "block text-sm font-medium text-slate-700",
-        className
-      )}
-      {...props}
-    >
+    <label className={cn("block text-sm font-semibold text-ink", className)} {...props}>
       {children}
-      {required && <span className="text-red-500 ml-1">*</span>}
+      {required && (
+        <span className="ml-0.5 text-danger" aria-hidden="true">
+          *
+        </span>
+      )}
     </label>
   );
 }

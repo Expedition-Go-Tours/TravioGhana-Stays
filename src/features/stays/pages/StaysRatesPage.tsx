@@ -3,7 +3,6 @@
 // Remove this directive once the file is typed — `npm run typecheck` then enforces it.
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import StaysSurface from "../components/StaysSurface";
 import StaysPageHeader from "../components/StaysPageHeader";
 import StaysButton from "../components/StaysButton";
 import StaysCard from "../components/StaysCard";
@@ -39,7 +38,7 @@ export default function StaysRatesPage() {
   });
 
   return (
-    <StaysSurface>
+    <div>
       <StaysPageHeader
         title="Rate"
         subtitle={
@@ -82,6 +81,6 @@ export default function StaysRatesPage() {
           </StaysEmptyState>
         </StaysCard>
       )}
-    </StaysSurface>
+    </div>
   );
 }

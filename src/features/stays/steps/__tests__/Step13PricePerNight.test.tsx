@@ -30,9 +30,9 @@ describe("Step13PricePerNight — price per night", () => {
     renderStep();
 
     expect(screen.getByText("Price per night")).toBeTruthy();
-    expect(screen.getByText("Median: GHS 402")).toBeTruthy();
-    expect(screen.getByText("GHS 120")).toBeTruthy();
-    expect(screen.getByText("GHS 673")).toBeTruthy();
+    expect(screen.getByText("Median: GHS 402.00")).toBeTruthy();
+    expect(screen.getByText("GHS 120.00")).toBeTruthy();
+    expect(screen.getByText("GHS 673.00")).toBeTruthy();
 
     expect(screen.getByLabelText("Price guests pay")).toBeTruthy();
     expect(screen.getByDisplayValue("29.00")).toBeTruthy();
@@ -45,15 +45,15 @@ describe("Step13PricePerNight — price per night", () => {
     expect(
       screen.getByRole("checkbox", { name: /Get guests' attention with a 20% discount/ }).checked,
     ).toBe(true);
-    expect(screen.getByText(/GHS 23\.2 per night/)).toBeTruthy();
+    expect(screen.getByText(/GHS 23\.20 per night/)).toBeTruthy();
   });
 
   it("formats the whole step in the chosen payout currency", () => {
     renderStep({ overrides: { currency: "USD" } });
 
-    expect(screen.getByText("Median: USD 402")).toBeTruthy();
-    expect(screen.getByText("USD 24.65")).toBeTruthy();
-    expect(screen.getByText(/USD 23\.2 per night/)).toBeTruthy();
+    expect(screen.getByText("Median: $402.00")).toBeTruthy();
+    expect(screen.getByText("$24.65")).toBeTruthy();
+    expect(screen.getByText(/\$23\.20 per night/)).toBeTruthy();
   });
 
   it("records a typed price and toggles the promotion", async () => {
@@ -89,5 +89,13 @@ describe("Step13PricePerNight — price per night", () => {
 
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Step13PricePerNight — currency default", () => {
+  it("defaults to USD when the property has no currency yet, and keeps the picker", () => {
+    renderStep({ overrides: { currency: undefined } });
+    expect(screen.getByText("Median: $402.00")).toBeTruthy();
+    expect(screen.getByRole("combobox")).toHaveTextContent("USD");
   });
 });

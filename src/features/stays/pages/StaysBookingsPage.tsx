@@ -1,635 +1,365 @@
-// @ts-nocheck
-// Migration marker: ported from JavaScript; props/data shapes are not annotated yet.
-// Remove this directive once the file is typed — `npm run typecheck` then enforces it.
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Search,
-  X,
-  RefreshCw,
-  Calendar,
-  Loader2,
-  ShoppingCart,
-  Clock,
-  CheckCircle2,
-  BadgeCheck,
-  AlertTriangle,
-  TrendingUp,
-  Plus,
-} from "@/features/stays/icons";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "@/lib/constants";
-import DatePicker from "@/components/forms/DatePicker";
-import StaysSurface from "../components/StaysSurface";
-import StaysBookingCard from "../components/StaysBookingCard";
-import StaysButton from "../components/StaysButton";
-import StaysModal from "../components/StaysModal";
-import { StaysField, StaysInput, StaysSelect, StaysTextarea } from "../components/StaysForm";
 import {
-  createStayBooking,
-  listProperties,
-  listStaysBookings,
-  updateBookingStatus,
-  STAYS_KEYS,
-} from "../api";
-import { BOOKING_STATUSES } from "../utils/status";
-import { formatMoney } from "../utils/money";
+  Button,
+  Card,
+  DataTable,
+  EmptyState,
+  IconButton,
+  Input,
+  Money,
+  NativeSelect,
+  Pagination,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui";
+import { Plus, RefreshCw, Search, SlidersHorizontal, Ticket, X } from "@/features/stays/icons";
+import { useBreakpoint } from "@/hooks/useMediaQuery";
+import { useTabParam } from "@/hooks/useTabParam";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { queryStatus } from "@/lib/queryState";
+import { cn } from "@/lib/utils";
+import type { Booking, BookingListItem } from "@/types/stays";
+import StaysPageHeader from "../components/StaysPageHeader";
+import { BookingDetailSheet } from "../components/bookings/BookingDetailSheet";
+import { BookingFiltersSheet } from "../components/bookings/BookingFiltersSheet";
+import { ReservationCard } from "../components/bookings/BookingParts";
+import { CreateBookingDialog } from "../components/bookings/CreateBookingDialog";
+import {
+  activeFilterCount,
+  applyFilters,
+  BOOKING_SORTS,
+  BOOKING_TAB_VALUES,
+  BOOKING_TABS,
+  bookedValue,
+  EMPTY_FILTERS,
+  filtersFromParams,
+  inTab,
+  tabCounts,
+  writeFilters,
+  type BookingAction,
+  type BookingFilters,
+  type BookingSort,
+} from "../components/bookings/bookingList";
+import { reservationColumns } from "../components/bookings/reservationColumns";
+import { listStaysBookings, STAYS_KEYS, updateBookingStatus } from "../api";
+import { formatStayDate } from "../utils/stayDates";
 
 /**
- * Bookings — the Stays mirror of the Experiences bookings page: the same
- * header + Refresh, six stat tiles, the quick-filter / search / date-filter
- * toolbar, expandable reservation cards and the pagination footer, populated
- * with the property workspace's own reservations.
- *
- * Status changes happen through the cards' actions (no editor modal): every
- * transition writes through `updateBookingStatus` and refreshes the bookings
- * and dashboard queries.
+ * Bookings: every reservation, split into status tabs, with search, property
+ * and check-in filters, and a sort. A row opens the booking in a side panel
+ * (a bottom sheet on phones) where it can be confirmed, checked in, completed
+ * or cancelled. The tab, filters and open booking live in the URL
+ * (`?tab=new&q=sarah&bookingId=TG-S-20493`), so links from the dashboard and
+ * notifications land on the right booking and the back button works.
  */
-const emptyBookingForm = () => ({
-  propertyId: "",
-  roomId: "",
-  guestName: "",
-  guestEmail: "",
-  guestPhone: "",
-  checkIn: "",
-  checkOut: "",
-  guests: "1",
-  specialRequests: "",
-});
+
+const PAGE_SIZE = 25;
 
 export default function StaysBookingsPage() {
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState("All");
-  const [localSearch, setLocalSearch] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
-  const [stayFrom, setStayFrom] = useState("");
-  const [stayTo, setStayTo] = useState("");
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [updatingId, setUpdatingId] = useState(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState("");
-  const [createForm, setCreateForm] = useState(() => emptyBookingForm());
+  const [params, setParams] = useSearchParams();
+  const [tab, setTabParam] = useTabParam("tab", BOOKING_TAB_VALUES, "all");
+  const paramsKey = params.toString();
+  // Memoised on the query string so the object is stable between renders.
+  const filters = useMemo(() => filtersFromParams(new URLSearchParams(paramsKey)), [paramsKey]);
+  const bookingId = params.get("bookingId");
 
-  const { data: bookings = [], isLoading } = useQuery({
+  const [page, setPage] = useState(1);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtersKey, setFiltersKey] = useState(0);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [pending, setPending] = useState<{ id: string; status: string } | null>(null);
+  const roomy = useBreakpoint("xl");
+
+  const bookingsQuery = useQuery({
     queryKey: STAYS_KEYS.bookings(),
     queryFn: () => listStaysBookings(),
     staleTime: 20_000,
   });
+  const status = queryStatus(bookingsQuery);
+  const all = useMemo(() => bookingsQuery.data ?? [], [bookingsQuery.data]);
 
-  // Only fetched when the create dialog opens: the bookings page itself does
-  // not otherwise need the property catalogue.
-  const { data: properties = [] } = useQuery({
-    queryKey: ["stays", "properties"],
-    queryFn: () => listProperties(),
-    enabled: createOpen,
-    staleTime: 30_000,
-  });
+  const counts = useMemo(() => tabCounts(all), [all]);
+  const inCurrentTab = useMemo(() => all.filter((booking) => inTab(booking, tab)), [all, tab]);
+  const rows = useMemo(() => applyFilters(inCurrentTab, filters), [inCurrentTab, filters]);
+  const properties = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const booking of all) if (!seen.has(booking.propertyId)) seen.set(booking.propertyId, booking.propertyName);
+    return [...seen].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [all]);
 
-  const selectedProperty = properties.find((property) => property.id === createForm.propertyId);
-  const rooms = selectedProperty?.rooms || [];
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageRows = rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const selected = bookingId ? all.find((booking) => booking.id === bookingId) : undefined;
+  const filterCount = activeFilterCount(filters);
+  const filtered = filterCount > 0 || Boolean(filters.query.trim());
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, status }) => updateBookingStatus(id, status),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["stays", "bookings"] });
-      queryClient.invalidateQueries({ queryKey: STAYS_KEYS.dashboard });
-      toast.success("Reservation updated");
+  /* ── URL state ─────────────────────────────────────────────────────────── */
+
+  const setTab = (next: string) => {
+    setTabParam(next as (typeof BOOKING_TAB_VALUES)[number]);
+    setPage(1);
+  };
+
+  const setFilters = (next: BookingFilters) => {
+    setParams((current) => writeFilters(current, next), { replace: true });
+    setPage(1);
+  };
+
+  const openBooking = (id: string) =>
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("bookingId", id);
+      return next;
+    });
+
+  const closeBooking = () =>
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.delete("bookingId");
+        return next;
+      },
+      { replace: true },
+    );
+
+  /* ── Writes ────────────────────────────────────────────────────────────── */
+
+  const refreshAfterWrite = () => {
+    void queryClient.invalidateQueries({ queryKey: ["stays", "bookings"] });
+    void queryClient.invalidateQueries({ queryKey: STAYS_KEYS.dashboard });
+  };
+
+  const statusMutation = useMutation({
+    mutationFn: ({ booking, action }: { booking: BookingListItem; action: BookingAction }) =>
+      updateBookingStatus(booking.id, action.to),
+    onMutate: ({ booking, action }) => setPending({ id: booking.id, status: action.to }),
+    onSuccess: (_saved, { booking, action }) => {
+      // Show the new status straight away; the refetch then confirms it.
+      queryClient.setQueryData<BookingListItem[]>(STAYS_KEYS.bookings(), (current) =>
+        current?.map((row) => (row.id === booking.id ? { ...row, status: action.to } : row)),
+      );
+      refreshAfterWrite();
+      toast.success(action.done);
     },
-    onError: () => toast.error("Could not update the reservation"),
-    onSettled: () => setUpdatingId(null),
+    onError: (error) => toast.error(getErrorMessage(error) || "We couldn't update the booking. Try again."),
+    onSettled: () => setPending(null),
   });
 
-  const handleStatusUpdate = (id, status) => {
-    setUpdatingId(id);
-    updateMutation.mutate({ id, status });
+  const handleCreated = (booking: Booking) => {
+    setCreateOpen(false);
+    toast.success(`Booking created for ${booking.guest}`);
+    refreshAfterWrite();
+    openBooking(booking.id);
   };
 
-  const updateCreateForm = (patch) => {
-    setCreateForm((current) => ({ ...current, ...patch }));
-  };
+  /* ── Render ────────────────────────────────────────────────────────────── */
 
-  const handleCreate = async () => {
-    setCreateError("");
-    if (!createForm.propertyId || !createForm.roomId) {
-      setCreateError("Choose a property and a room.");
-      return;
-    }
-    if (!createForm.guestName.trim()) {
-      setCreateError("Add the guest's name.");
-      return;
-    }
-    if (!createForm.checkIn || !createForm.checkOut) {
-      setCreateError("Choose the check-in and check-out dates.");
-      return;
-    }
+  const tabLabel = BOOKING_TABS.find((entry) => entry.value === tab)?.label ?? "All";
+  const empty =
+    all.length === 0 ? (
+      <EmptyState
+        icon={<Ticket size={22} />}
+        title="No bookings yet"
+        description="Reservations appear here as soon as guests book. You can also record a walk-in or phone booking yourself."
+        action={
+          <Button variant="primary" onClick={() => setCreateOpen(true)}>
+            <Plus size={16} weight="bold" aria-hidden="true" />
+            Create booking
+          </Button>
+        }
+      />
+    ) : filtered ? (
+      <EmptyState
+        icon={<Search size={22} />}
+        title="No bookings match"
+        description="Try another search, or clear the filters to see every booking in this tab."
+        action={<Button onClick={() => setFilters({ ...EMPTY_FILTERS, sort: filters.sort })}>Clear filters</Button>}
+      />
+    ) : (
+      <EmptyState icon={<Ticket size={22} />} title={`No ${tabLabel.toLowerCase()} bookings`} description="Bookings will show up here when their status matches." />
+    );
 
-    setCreating(true);
-    try {
-      await createStayBooking({
-        ...createForm,
-        guests: Number(createForm.guests) || 1,
-      });
-      queryClient.invalidateQueries({ queryKey: ["stays", "bookings"] });
-      queryClient.invalidateQueries({ queryKey: STAYS_KEYS.dashboard });
-      toast.success("Booking created");
-      setCreateOpen(false);
-      setCreateForm(emptyBookingForm());
-    } catch (error) {
-      setCreateError(
-        error?.response?.data?.message || "Could not create the booking.",
-      );
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const hasFilters = Boolean(localSearch || stayFrom || stayTo);
-
-  const clearFilters = () => {
-    setLocalSearch("");
-    setStayFrom("");
-    setStayTo("");
-    setPage(0);
-  };
-
-  const filteredData = useMemo(() => {
-    let data = bookings.filter((booking) => filter === "All" || booking.status === filter);
-    const query = localSearch.toLowerCase().trim();
-    if (query) {
-      data = data.filter((booking) =>
-        `${booking.guest} ${booking.bookingNumber || booking.id} ${booking.propertyName || ""} ${booking.room}`
-          .toLowerCase()
-          .includes(query),
-      );
-    }
-    if (stayFrom) data = data.filter((booking) => booking.from >= stayFrom);
-    if (stayTo) data = data.filter((booking) => booking.to <= stayTo);
-    return data;
-  }, [bookings, filter, localSearch, stayFrom, stayTo]);
-
-  const stats = useMemo(
-    () => ({
-      total: bookings.length,
-      newCount: bookings.filter((booking) => booking.status === "New").length,
-      confirmed: bookings.filter((booking) => booking.status === "Confirmed").length,
-      checkedIn: bookings.filter((booking) => booking.status === "Checked in").length,
-      cancelled: bookings.filter(
-        (booking) => booking.status === "Cancelled" || booking.status === "No-show",
-      ).length,
-      revenue: bookings
-        .filter((booking) => booking.status !== "Cancelled" && booking.status !== "No-show")
-        .reduce((sum, booking) => sum + booking.amount, 0),
-    }),
-    [bookings],
-  );
-
-  const totalItems = filteredData.length;
-  const totalPages = Math.ceil(totalItems / pageSize) || 1;
-  const safePage = Math.min(page, totalPages - 1);
-  const pageRows = filteredData.slice(safePage * pageSize, safePage * pageSize + pageSize);
+  const chips: { key: keyof BookingFilters; label: string }[] = [
+    filters.propertyId && {
+      key: "propertyId" as const,
+      label: properties.find((property) => property.id === filters.propertyId)?.name ?? "Property",
+    },
+    filters.from && { key: "from" as const, label: `Check-in from ${formatStayDate(filters.from)}` },
+    filters.to && { key: "to" as const, label: `Check-in until ${formatStayDate(filters.to)}` },
+  ].filter((chip): chip is { key: "propertyId" | "from" | "to"; label: string } => Boolean(chip));
 
   return (
-    <StaysSurface className="space-y-5">
-      {/* ====== HEADER ====== */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Bookings</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Manage and track all guest reservations
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <StaysButton
-            variant="primary"
-            onClick={() => {
-              setCreateError("");
-              setCreateOpen(true);
-            }}
-          >
-            <Plus size={15} />
-            Create booking
-          </StaysButton>
-          <button
-            onClick={() =>
-              queryClient.invalidateQueries({ queryKey: ["stays", "bookings"] })
-            }
-            disabled={isLoading}
-            className="flex items-center gap-1.5 px-4 py-2 bg-white border border-emerald-100/60 rounded-xl text-sm font-medium text-slate-600 hover:bg-emerald-50/40 hover:text-slate-800 transition-all disabled:opacity-50 shadow-sm"
-          >
-            {isLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-            Refresh
-          </button>
-        </div>
-      </div>
-
-      {/* ====== STATS ====== */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 lg:gap-4">
-        {[
-          {
-            label: "Total Bookings",
-            value: stats.total,
-            icon: ShoppingCart,
-            color: "text-slate-900",
-            bar: "bg-slate-200",
-          },
-          {
-            label: "New",
-            value: stats.newCount,
-            icon: Clock,
-            color: "text-amber-600",
-            bar: "bg-amber-400",
-          },
-          {
-            label: "Confirmed",
-            value: stats.confirmed,
-            icon: CheckCircle2,
-            color: "text-blue-600",
-            bar: "bg-blue-400",
-          },
-          {
-            label: "Checked in",
-            value: stats.checkedIn,
-            icon: BadgeCheck,
-            color: "text-green-700",
-            bar: "bg-green-500",
-          },
-          {
-            label: "Cancellations",
-            value: stats.cancelled,
-            icon: AlertTriangle,
-            color: "text-red-600",
-            bar: "bg-red-400",
-          },
-          {
-            label: "Revenue",
-            value: formatMoney(stats.revenue),
-            icon: TrendingUp,
-            color: "text-emerald-700",
-            bar: "bg-emerald-600",
-          },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="bg-white rounded-xl border border-emerald-100/60 p-3 sm:p-4 lg:p-2 xl:p-4 hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-center justify-between gap-1 mb-2">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 lg:w-6 lg:h-6 xl:w-9 xl:h-9 rounded-lg bg-emerald-50/40 border border-emerald-100/60 flex items-center justify-center shrink-0">
-                <stat.icon size={14} className={`${stat.color} lg:w-3 lg:h-3`} />
-              </div>
-              <span
-                className={`text-base sm:text-lg lg:text-xs xl:text-sm 2xl:text-lg font-bold ${stat.color} text-right truncate min-w-0`}
-              >
-                {stat.value}
-              </span>
-            </div>
-            <p className="text-[10px] sm:text-[11px] text-slate-500">{stat.label}</p>
-            <div className={`mt-2 h-0.5 w-full rounded-full ${stat.bar} opacity-30`} />
-          </div>
-        ))}
-      </div>
-
-      {/* ====== TOOLBAR ====== */}
-      <div className="bg-white rounded-xl border border-emerald-100/60 shadow-sm">
-        <div className="flex items-center gap-1 px-4 pt-3 pb-2 overflow-x-auto scrollbar-none">
-          {["All", ...BOOKING_STATUSES].map((status) => (
-            <button
-              key={status}
-              onClick={() => {
-                setFilter(status);
-                setPage(0);
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                filter === status
-                  ? "bg-[#044b3b] text-white shadow-sm"
-                  : "text-slate-500 hover:text-slate-700 hover:bg-emerald-50/40"
-              }`}
-            >
-              {status === "All" ? "All bookings" : status}
-            </button>
-          ))}
-        </div>
-
-        <div className="px-4 pb-3 pt-1 flex flex-wrap items-center gap-2.5">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
-            />
-            <input
-              type="text"
-              placeholder="Search guest, reference or property..."
-              value={localSearch}
-              onChange={(event) => {
-                setLocalSearch(event.target.value);
-                setPage(0);
-              }}
-              className="w-full pl-9 pr-3 py-2 bg-emerald-50/40 border border-emerald-100/60 rounded-lg text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#044b3b]/20 focus:border-[#044b3b] focus:bg-white transition-all"
-            />
-          </div>
-
-          <button
-            onClick={() => setShowFilters((current) => !current)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
-              showFilters || hasFilters
-                ? "border-[#044b3b] bg-emerald-50 text-[#044b3b]"
-                : "border-emerald-100/60 bg-white text-slate-500 hover:bg-emerald-50/40"
-            }`}
-          >
-            <Calendar size={13} /> Filters{" "}
-            {hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-[#044b3b]" />}
-          </button>
-
-          {hasFilters && (
-            <button
-              onClick={clearFilters}
-              className="flex items-center gap-1 px-2.5 py-2 text-xs text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            >
-              <X size={12} /> Clear
-            </button>
-          )}
-        </div>
-
-        {showFilters && (
-          <div className="px-4 pb-4 border-t border-emerald-100/40 pt-3 flex flex-wrap items-center gap-4">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-slate-500">
-              <Calendar size={12} />
-              <span>Stay dates</span>
-              <DatePicker
-                value={stayFrom}
-                onChange={(value) => {
-                  setStayFrom(value);
-                  setPage(0);
-                }}
-                placeholder="From"
-                size="sm"
-                className="w-28"
-                maxDate={stayTo || undefined}
-              />
-              <span className="text-slate-300">–</span>
-              <DatePicker
-                value={stayTo}
-                onChange={(value) => {
-                  setStayTo(value);
-                  setPage(0);
-                }}
-                placeholder="To"
-                size="sm"
-                className="w-28"
-                minDate={stayFrom || undefined}
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ====== BOOKINGS ====== */}
-      {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((row) => (
-            <div
-              key={row}
-              className="bg-white rounded-xl border border-emerald-100/60 p-4"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg bg-emerald-100/40 animate-pulse" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 w-48 bg-emerald-100/40 rounded animate-pulse" />
-                  <div className="h-3 w-32 bg-emerald-100/40 rounded animate-pulse" />
-                  <div className="h-2 w-20 bg-emerald-100/40 rounded animate-pulse" />
-                </div>
-                <div className="h-6 w-16 bg-emerald-100/40 rounded-full animate-pulse" />
-                <div className="h-4 w-16 bg-emerald-100/40 rounded animate-pulse" />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : filteredData.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center bg-white rounded-xl border border-emerald-100/60">
-          <div className="w-14 h-14 rounded-full bg-emerald-50/40 flex items-center justify-center mb-4">
-            <ShoppingCart size={24} className="text-slate-300" weight="light" />
-          </div>
-          <p className="text-sm font-medium text-slate-700 mb-1">No bookings yet</p>
-          <p className="text-xs text-slate-500 mb-4">
-            Reservations will appear here once guests book your properties
-          </p>
-          {hasFilters && (
-            <button
-              onClick={clearFilters}
-              className="text-xs font-medium text-[#044b3b] hover:underline"
-            >
-              Clear filters
-            </button>
-          )}
-        </div>
-      ) : (
-        <>
-          <p className="text-xs text-slate-500">
-            {totalItems} booking{totalItems !== 1 ? "s" : ""}
-          </p>
-          <div className="space-y-3">
-            {pageRows.map((booking) => (
-              <StaysBookingCard
-                key={booking.id}
-                booking={booking}
-                isUpdating={updatingId === booking.id}
-                onStatusUpdate={handleStatusUpdate}
-              />
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* ====== PAGINATION ====== */}
-      {totalPages > 1 && !isLoading && (
-        <div className="flex items-center justify-between pt-4 border-t border-emerald-100/60">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-slate-500">
-            <span>Show</span>
-            <select
-              value={pageSize}
-              onChange={(event) => {
-                setPageSize(Number(event.target.value));
-                setPage(0);
-              }}
-              className="px-2 py-1 border border-emerald-100/60 rounded-lg text-xs text-slate-700 bg-white focus:outline-none"
-            >
-              {PAGE_SIZE_OPTIONS.map((size) => (
-                <option key={size} value={size}>
-                  {size}
-                </option>
-              ))}
-            </select>
-            <span>of {totalItems}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              disabled={safePage === 0}
-              onClick={() => setPage(safePage - 1)}
-              className="px-2.5 py-1.5 border border-emerald-100/60 rounded-lg text-xs font-medium text-slate-600 hover:bg-emerald-50/40 disabled:opacity-30 disabled:cursor-default transition-colors"
-            >
-              Prev
-            </button>
-            {Array.from({ length: Math.min(totalPages, 5) }, (_, index) => {
-              const start = Math.max(0, Math.min(safePage - 2, totalPages - 5));
-              const pageNumber = start + index;
-              if (pageNumber >= totalPages) return null;
-              return (
-                <button
-                  key={pageNumber}
-                  onClick={() => setPage(pageNumber)}
-                  className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${
-                    safePage === pageNumber
-                      ? "bg-[#044b3b] text-white shadow-sm"
-                      : "text-slate-600 hover:bg-emerald-50/40 border border-emerald-100/60"
-                  }`}
-                >
-                  {pageNumber + 1}
-                </button>
-              );
-            })}
-            <button
-              disabled={safePage >= totalPages - 1}
-              onClick={() => setPage(safePage + 1)}
-              className="px-2.5 py-1.5 border border-emerald-100/60 rounded-lg text-xs font-medium text-slate-600 hover:bg-emerald-50/40 disabled:opacity-30 disabled:cursor-default transition-colors"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
-
-      <StaysModal
-        open={createOpen}
-        onOpenChange={(next) => {
-          setCreateOpen(next);
-          if (!next) {
-            setCreateError("");
-            setCreateForm(emptyBookingForm());
-          }
-        }}
-        title="Create booking"
-        description="Record a walk-in or phone reservation against one of your properties."
-        footer={
+    <div>
+      <StaysPageHeader
+        title="Bookings"
+        subtitle="Every reservation across your properties."
+        actions={
           <>
-            <StaysButton
-              onClick={() => {
-                setCreateOpen(false);
-                setCreateError("");
-                setCreateForm(emptyBookingForm());
-              }}
-              disabled={creating}
+            <IconButton
+              variant="secondary"
+              aria-label="Refresh bookings"
+              loading={bookingsQuery.isFetching && !bookingsQuery.isLoading}
+              onClick={() => void bookingsQuery.refetch()}
             >
-              Cancel
-            </StaysButton>
-            <StaysButton
-              variant="primary"
-              onClick={handleCreate}
-              disabled={creating}
-            >
-              {creating ? "Creating…" : "Create booking"}
-            </StaysButton>
+              {!(bookingsQuery.isFetching && !bookingsQuery.isLoading) && <RefreshCw size={18} />}
+            </IconButton>
+            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+              <Plus size={16} weight="bold" aria-hidden="true" />
+              Create booking
+            </Button>
           </>
         }
-      >
-        <div className="grid gap-4">
-          <StaysField label="Property">
-            <StaysSelect
-              value={createForm.propertyId}
-              onChange={(event) =>
-                updateCreateForm({ propertyId: event.target.value, roomId: "" })
-              }
-              options={properties.map((property) => ({
-                value: property.id,
-                label: property.name,
-              }))}
-              placeholder={properties.length ? "Select a property" : "No properties yet"}
-              disabled={!properties.length}
-            />
-          </StaysField>
+      />
 
-          <StaysField
-            label="Room"
-            hint={selectedProperty ? undefined : "Choose a property first."}
-          >
-            <StaysSelect
-              value={createForm.roomId}
-              onChange={(event) => updateCreateForm({ roomId: event.target.value })}
-              options={rooms.map((room) => ({
-                value: room.id,
-                label: room.name || room.kind || "Room",
-              }))}
-              placeholder={selectedProperty ? "Select a room" : "Select a property first"}
-              disabled={!selectedProperty}
-            />
-          </StaysField>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList aria-label="Booking status">
+          {BOOKING_TABS.map((entry) => (
+            <TabsTrigger key={entry.value} value={entry.value} count={status === "success" ? counts[entry.value] : undefined}>
+              {entry.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-          <StaysField label="Guest name">
-            <StaysInput
-              value={createForm.guestName}
-              onChange={(event) => updateCreateForm({ guestName: event.target.value })}
-              placeholder="Full name"
-            />
-          </StaysField>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <StaysField label="Email">
-              <StaysInput
-                type="email"
-                value={createForm.guestEmail}
-                onChange={(event) => updateCreateForm({ guestEmail: event.target.value })}
-                placeholder="guest@example.com"
+        <TabsContent value={tab} className="pt-4">
+          {/* Toolbar */}
+          <div className="flex items-center gap-2">
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">Search bookings</span>
+              <Input
+                type="search"
+                value={filters.query}
+                placeholder="Guest, reference or property"
+                leading={<Search size={18} aria-hidden="true" />}
+                onChange={(event) => setFilters({ ...filters, query: event.target.value })}
               />
-            </StaysField>
-            <StaysField label="Phone">
-              <StaysInput
-                value={createForm.guestPhone}
-                onChange={(event) => updateCreateForm({ guestPhone: event.target.value })}
-                placeholder="+233…"
-              />
-            </StaysField>
+            </label>
+            <label className="hidden shrink-0 md:block">
+              <span className="sr-only">Sort bookings</span>
+              <NativeSelect
+                value={filters.sort}
+                className="w-56"
+                onChange={(event) => setFilters({ ...filters, sort: event.target.value as BookingSort })}
+              >
+                {BOOKING_SORTS.map((sort) => (
+                  <option key={sort.value} value={sort.value}>
+                    {sort.label}
+                  </option>
+                ))}
+              </NativeSelect>
+            </label>
+            <Button
+              variant="secondary"
+              aria-label={filterCount ? `Filters, ${filterCount} active` : "Filters"}
+              className={cn(filterCount > 0 && "border-brand text-brand-ink")}
+              onClick={() => {
+                setFiltersKey((key) => key + 1);
+                setFiltersOpen(true);
+              }}
+            >
+              <SlidersHorizontal size={18} aria-hidden="true" />
+              <span className="max-sm:sr-only">Filters</span>
+              {filterCount > 0 && (
+                <span aria-hidden="true" className="figures min-w-5 rounded-full bg-brand px-1.5 text-caption font-bold text-on-brand">
+                  {filterCount}
+                </span>
+              )}
+            </Button>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <StaysField label="Check-in">
-              <StaysInput
-                type="date"
-                value={createForm.checkIn}
-                onChange={(event) => updateCreateForm({ checkIn: event.target.value })}
-              />
-            </StaysField>
-            <StaysField label="Check-out">
-              <StaysInput
-                type="date"
-                value={createForm.checkOut}
-                onChange={(event) => updateCreateForm({ checkOut: event.target.value })}
-              />
-            </StaysField>
-          </div>
-
-          <StaysField label="Guests">
-            <StaysInput
-              type="number"
-              min="1"
-              value={createForm.guests}
-              onChange={(event) => updateCreateForm({ guests: event.target.value })}
-            />
-          </StaysField>
-
-          <StaysField label="Special requests">
-            <StaysTextarea
-              rows={3}
-              value={createForm.specialRequests}
-              onChange={(event) => updateCreateForm({ specialRequests: event.target.value })}
-              placeholder="Airport pickup, late arrival, dietary notes…"
-            />
-          </StaysField>
-
-          {createError && (
-            <p className="text-sm font-medium text-red-600">{createError}</p>
+          {/* Active filters */}
+          {chips.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {chips.map((chip) => (
+                <button
+                  key={chip.key}
+                  type="button"
+                  aria-label={`Remove filter: ${chip.label}`}
+                  onClick={() => setFilters({ ...filters, [chip.key]: "" })}
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-hairline-strong bg-surface px-3 text-sm font-medium text-ink hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {chip.label}
+                  <X size={14} aria-hidden="true" />
+                </button>
+              ))}
+              <Button variant="link" size="sm" onClick={() => setFilters({ ...EMPTY_FILTERS, query: filters.query, sort: filters.sort })}>
+                Clear all
+              </Button>
+            </div>
           )}
-        </div>
-      </StaysModal>
-    </StaysSurface>
+
+          {/* Result summary */}
+          {status === "success" && rows.length > 0 && (
+            <p className="mt-4 text-sm text-muted" aria-live="polite">
+              <span className="figures font-semibold text-ink">{rows.length.toLocaleString("en-US")}</span>{" "}
+              {rows.length === 1 ? "booking" : "bookings"}
+              {bookedValue(rows) > 0 && (
+                <>
+                  {" · "}
+                  <Money amount={bookedValue(rows)} currency={rows[0]?.currency} className="font-semibold text-ink" /> booked
+                </>
+              )}
+            </p>
+          )}
+
+          <Card
+            padding="none"
+            className="mt-3 min-w-0 max-md:border-0 max-md:bg-transparent max-md:shadow-none"
+          >
+            <DataTable
+              className="px-1 max-md:px-0"
+              ariaLabel="Bookings"
+              columns={reservationColumns({ roomy, withGuests: true })}
+              rows={pageRows}
+              status={status}
+              onRetry={() => void bookingsQuery.refetch()}
+              unavailableFeature="Bookings"
+              loadingRows={5}
+              empty={empty}
+              onRowClick={(booking) => openBooking(booking.id)}
+              rowLabel={(booking) => `Open booking ${booking.id} for ${booking.guest}`}
+              renderCard={(booking) => <ReservationCard booking={booking} />}
+              footer={
+                <Pagination
+                  className="px-4 max-md:px-0"
+                  page={currentPage}
+                  totalPages={totalPages}
+                  totalCount={rows.length}
+                  itemLabel="bookings"
+                  onPageChange={setPage}
+                />
+              }
+            />
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <BookingFiltersSheet
+        key={filtersKey}
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        filters={filters}
+        onApply={setFilters}
+        bookings={inCurrentTab}
+        properties={properties}
+      />
+
+      <BookingDetailSheet
+        bookingId={bookingId}
+        booking={selected}
+        loading={bookingsQuery.isLoading || (Boolean(bookingId) && !selected && bookingsQuery.isFetching)}
+        onClose={closeBooking}
+        onAction={(booking, action) => statusMutation.mutateAsync({ booking, action })}
+        pendingStatus={pending && pending.id === selected?.id ? pending.status : null}
+      />
+
+      <CreateBookingDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreated} />
+    </div>
   );
 }

@@ -1,9 +1,7 @@
+import axios, { type AxiosError } from 'axios';
 import { toast } from 'sonner';
 import config from '@/config';
 
-/**
- * Error Types
- */
 export const ErrorType = {
   NETWORK: 'NETWORK_ERROR',
   TIMEOUT: 'TIMEOUT_ERROR',
@@ -13,68 +11,93 @@ export const ErrorType = {
   NOT_FOUND: 'NOT_FOUND_ERROR',
   FORBIDDEN: 'FORBIDDEN_ERROR',
   UNKNOWN: 'UNKNOWN_ERROR',
-};
+} as const;
 
-/**
- * Error Messages Map
- */
-const errorMessages = {
+export type ErrorTypeValue = (typeof ErrorType)[keyof typeof ErrorType];
+
+/** Raised by the dev write guard in `lib/axios` — the request never left the browser. */
+export const LIVE_WRITE_BLOCKED = 'LIVE_WRITE_BLOCKED';
+export const LIVE_WRITE_BLOCKED_MESSAGE = 'Writes to the live API are disabled in development';
+
+const errorMessages: Record<ErrorTypeValue, string> = {
   [ErrorType.NETWORK]: 'Network error. Please check your internet connection.',
   [ErrorType.TIMEOUT]: 'Request timed out. Please try again.',
-  [ErrorType.AUTH]: 'Authentication failed. Please log in again.',
-  [ErrorType.VALIDATION]: 'Validation error. Please check your input.',
-  [ErrorType.SERVER]: 'Server error. Please try again later.',
-  [ErrorType.NOT_FOUND]: 'Resource not found.',
-  [ErrorType.FORBIDDEN]: "You don't have permission to access this resource.",
+  [ErrorType.AUTH]: 'Your session has expired. Please sign in again.',
+  [ErrorType.VALIDATION]: 'Some details need checking. Please review your input.',
+  [ErrorType.SERVER]: 'Something went wrong on our side. Please try again shortly.',
+  [ErrorType.NOT_FOUND]: "We couldn't find what you were looking for.",
+  [ErrorType.FORBIDDEN]: "You don't have permission to do that.",
   [ErrorType.UNKNOWN]: 'An unexpected error occurred.',
 };
 
-/**
- * Determine error type from axios error
- */
-export function getErrorType(error) {
-  if (!error.response) {
-    if (error.code === 'ECONNABORTED') {
-      return ErrorType.TIMEOUT;
-    }
+type ApiErrorBody = { message?: unknown; error?: unknown };
+
+/** Anything a rejected request can produce: AxiosError, a plain Error, or unknown. */
+type ErrorLike = Partial<AxiosError<ApiErrorBody>> & { code?: string; message?: string };
+
+function asErrorLike(error: unknown): ErrorLike {
+  return (error && typeof error === 'object' ? error : {}) as ErrorLike;
+}
+
+export function getErrorType(error: unknown): ErrorTypeValue {
+  const err = asErrorLike(error);
+  if (!err.response) {
+    if (err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT') return ErrorType.TIMEOUT;
     return ErrorType.NETWORK;
   }
 
-  const status = error.response.status;
-
+  const status = err.response.status;
   if (status === 401) return ErrorType.AUTH;
   if (status === 400 || status === 422) return ErrorType.VALIDATION;
   if (status === 403) return ErrorType.FORBIDDEN;
   if (status === 404) return ErrorType.NOT_FOUND;
   if (status >= 500) return ErrorType.SERVER;
-
   return ErrorType.UNKNOWN;
 }
 
 /**
- * Get user-friendly error message
+ * A message fit to show a user: the server's own message when it sent one,
+ * otherwise the friendly text for the error type. Axios's generic
+ * "Request failed with status code 500" / "Network Error" never reach the UI.
  */
-export function getErrorMessage(error) {
-  const errorType = getErrorType(error);
-  
-  // Try to get message from response
-  const responseMessage = 
-    error.response?.data?.message ||
-    error.response?.data?.error ||
-    error.message;
+export function getErrorMessage(error: unknown): string {
+  const err = asErrorLike(error);
+  if (err.code === LIVE_WRITE_BLOCKED) return LIVE_WRITE_BLOCKED_MESSAGE;
 
-  // Return custom message or default
-  return responseMessage || errorMessages[errorType];
+  const body = err.response?.data;
+  const serverMessage = [body?.message, body?.error].find(
+    (value): value is string => typeof value === 'string' && value.trim() !== '',
+  );
+  return serverMessage || errorMessages[getErrorType(error)];
 }
 
-// Error toasts must never stack: an outage (paused DB, gateway 5xx, dropped
-// connection) fails every background refetch, and each failure would otherwise
-// pop its own toast. Same-message toasts are suppressed within the window, so
-// the user sees one notice per problem, not a wall of identical ones.
-const ERROR_TOAST_DEDUPE_MS = 20000;
-let lastErrorToast = { message: null, at: 0 };
+/**
+ * True when a Stays / finance supplier endpoint answered 404 or 501: the
+ * feature has not shipped on the backend for this account yet. Pages render
+ * a calm "not available yet" state instead of an error.
+ */
+const NOT_AVAILABLE_PATHS = [
+  /^\/stays\/supplier(\/|$)/,
+  /^\/travioghana\/supplier\/stays(\/|$)/,
+  /^\/finance\//,
+  /^\/travioghana\/supplier\/finance(\/|$)/,
+];
 
-function shouldShowErrorToast(message) {
+export function isNotAvailable(error: unknown): boolean {
+  if (!axios.isAxiosError(error)) return false;
+  const status = error.response?.status;
+  if (status !== 404 && status !== 501) return false;
+  const path = String(error.config?.url || '').split('?')[0];
+  return NOT_AVAILABLE_PATHS.some((pattern) => pattern.test(path));
+}
+
+// Error toasts must never stack: an outage fails every background refetch, and
+// each failure would otherwise pop its own toast. Same-message toasts are
+// suppressed within the window.
+const ERROR_TOAST_DEDUPE_MS = 20000;
+let lastErrorToast: { message: string | null; at: number } = { message: null, at: 0 };
+
+function shouldShowErrorToast(message: string) {
   const now = Date.now();
   if (lastErrorToast.message === message && now - lastErrorToast.at < ERROR_TOAST_DEDUPE_MS) {
     return false;
@@ -83,144 +106,63 @@ function shouldShowErrorToast(message) {
   return true;
 }
 
-/**
- * Handle API Error
- * Shows toast notification and logs error
- */
-export function handleApiError(error, customMessage) {
-  const errorType = getErrorType(error);
+/** Test hook: forget the last toast so dedupe does not leak across tests. */
+export function resetErrorToastDedupe() {
+  lastErrorToast = { message: null, at: 0 };
+}
+
+export type HandledError = { type: ErrorTypeValue; message: string; originalError: unknown };
+
+/** Show a toast (deduped, never for offline errors) and report to monitoring. */
+export function handleApiError(error: unknown, customMessage?: string): HandledError {
+  const type = getErrorType(error);
   const message = customMessage || getErrorMessage(error);
 
-  // Log error in development
   if (config.isDevelopment()) {
-    console.error('API Error:', {
-      type: errorType,
-      message,
-      error,
-      response: error.response,
-    });
+    console.error('API Error:', { type, message, error });
   }
 
-  // Show toast notification (skip for network errors, dedupe the rest so an
-  // outage never floods the screen with identical toasts)
-  if (errorType !== ErrorType.NETWORK && shouldShowErrorToast(message)) {
-    toast.error(message, {
-      duration: 5000,
-    });
+  if (type !== ErrorType.NETWORK && shouldShowErrorToast(message)) {
+    toast.error(message, { duration: 5000 });
   }
 
-  // Log to monitoring service
-  logError(error, { type: errorType, message });
-
-  return {
-    type: errorType,
-    message,
-    originalError: error,
-  };
+  logError(error, { type, message });
+  return { type, message, originalError: error };
 }
 
+export type ErrorContext = Record<string, unknown>;
+type ErrorReporter = (error: unknown, context: ErrorContext) => void;
+
+let reporter: ErrorReporter | null = null;
+
 /**
- * Log error to monitoring service
+ * Monitoring hook. Nothing is wired yet — call `setErrorReporter` from
+ * `main.tsx` once a service (Sentry, …) is chosen. Until then this is a no-op.
  */
-export function logError(error, context = {}) {
-  if (config.monitoring.sentryDSN) {
-    // TODO: Integrate with Sentry or other monitoring service
-    // Example: Sentry.captureException(error, { extra: context });
-    console.log('📊 Logging error to monitoring service:', error.message, context);
-  }
+export function setErrorReporter(next: ErrorReporter | null) {
+  reporter = next;
+}
+
+export function logError(error: unknown, context: ErrorContext = {}) {
+  reporter?.(error, context);
+}
+
+/** Network drops, timeouts and 5xx are worth retrying; everything else is final. */
+export function isRetryableError(error: unknown): boolean {
+  const type = getErrorType(error);
+  return type === ErrorType.NETWORK || type === ErrorType.TIMEOUT || type === ErrorType.SERVER;
 }
 
 /**
- * Retry logic with exponential backoff
- */
-export async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
-  let lastError;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error;
-
-      // Don't retry on certain errors
-      const errorType = getErrorType(error);
-      if ([ErrorType.AUTH, ErrorType.FORBIDDEN, ErrorType.VALIDATION].includes(errorType)) {
-        throw error;
-      }
-
-      // Don't retry if this was the last attempt
-      if (attempt === maxRetries) {
-        throw error;
-      }
-
-      // Calculate delay with exponential backoff
-      const delay = baseDelay * Math.pow(2, attempt);
-      
-      if (config.isDevelopment()) {
-        console.log(`Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms`);
-      }
-
-      // Wait before retrying
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-
-  throw lastError;
-}
-
-/**
- * Check if error is retryable
- */
-export function isRetryableError(error) {
-  const errorType = getErrorType(error);
-  return [ErrorType.NETWORK, ErrorType.TIMEOUT, ErrorType.SERVER].includes(errorType);
-}
-
-/**
- * Format validation errors
- */
-export function formatValidationErrors(errors) {
-  if (Array.isArray(errors)) {
-    return errors.map(err => err.message || err).join(', ');
-  }
-
-  if (typeof errors === 'object') {
-    return Object.entries(errors)
-      .map(([field, message]) => `${field}: ${message}`)
-      .join(', ');
-  }
-
-  return String(errors);
-}
-
-/**
- * Global error handler for unhandled promise rejections
+ * Report unhandled errors to monitoring. The browser's own logging is left
+ * alone: suppressing it (`preventDefault`) used to hide real bugs.
  */
 export function setupGlobalErrorHandlers() {
-  // Handle unhandled promise rejections
   window.addEventListener('unhandledrejection', (event) => {
-    console.error('Unhandled promise rejection:', event.reason);
     logError(event.reason, { type: 'unhandledRejection' });
-    
-    // Prevent default browser behavior
-    event.preventDefault();
   });
 
-  // Handle global errors
   window.addEventListener('error', (event) => {
-    console.error('Global error:', event.error);
     logError(event.error, { type: 'globalError' });
   });
 }
-
-export default {
-  ErrorType,
-  getErrorType,
-  getErrorMessage,
-  handleApiError,
-  logError,
-  retryWithBackoff,
-  isRetryableError,
-  formatValidationErrors,
-  setupGlobalErrorHandlers,
-};

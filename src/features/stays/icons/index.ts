@@ -1,6 +1,3 @@
-// @ts-nocheck
-// Migration marker: ported from JavaScript; props/data shapes are not annotated yet.
-// Remove this directive once the file is typed — `npm run typecheck` then enforces it.
 /**
  * Stays workspace icon surface — Phosphor icons only.
  *
@@ -44,6 +41,7 @@ export {
   ArrowRight,
   ArrowUp,
   ArrowUpRight,
+  ArrowDownRight,
   ArrowsDownUp,
   ArrowsDownUp as ArrowUpDown,
   CaretDown,
@@ -149,10 +147,19 @@ export {
   PaperPlaneTilt as Send,
   Paperclip,
 
+  // Empty states
+  Tray as Inbox,
+
+  // Theme
+  Sun,
+  Moon,
+  Monitor,
+
   // Content and interface controls
   Bell,
   Gear,
   Gear as Settings,
+  SlidersHorizontal,
   SlidersHorizontal as Settings2,
   Hash,
   MagnifyingGlass,

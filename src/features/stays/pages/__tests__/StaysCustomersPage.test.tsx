@@ -63,7 +63,7 @@ describe("StaysCustomersPage — experiences-parity customers chat", () => {
       (await screen.findAllByText("Is airport pickup available for my arrival?")).length,
     ).toBeGreaterThan(0);
     expect(
-      screen.getAllByText("Yes — airport pickup can be arranged for GHS 150.").length,
+      screen.getAllByText("Yes — airport pickup can be arranged for $150.").length,
     ).toBeGreaterThan(0);
 
     const [composer] = screen.getAllByPlaceholderText("Type a message...");

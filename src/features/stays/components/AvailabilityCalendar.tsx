@@ -3,6 +3,7 @@ import StaysCard from "./StaysCard";
 import { cellStateFor } from "../utils/availability";
 import { fromISODate } from "../utils/dates";
 import { formatMoney } from "../utils/money";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 /**
  * The availability calendar — a Sunday-first month grid laid out exactly like
@@ -32,7 +33,7 @@ export default function AvailabilityCalendar({
   overrides = {},
   todayIso,
   statusFilter = {},
-  currency = "GHS",
+  currency = DEFAULT_CURRENCY,
   onCellClick,
   onResetFilters,
 }) {

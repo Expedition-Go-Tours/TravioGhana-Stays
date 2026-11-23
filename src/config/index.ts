@@ -9,6 +9,8 @@
  * undefined in production builds.
  */
 
+import { resolveDataSource, type DataSource } from './dataSource';
+
 function envString(value, defaultValue) {
   if (value === undefined || value === null || value === '') {
     return defaultValue;
@@ -55,13 +57,6 @@ const env = {
   VITE_TOKEN_REFRESH_INTERVAL: envNum(import.meta.env.VITE_TOKEN_REFRESH_INTERVAL, 300000),
   VITE_SESSION_TIMEOUT: envNum(import.meta.env.VITE_SESSION_TIMEOUT, 3600000),
 
-  // Firebase
-  VITE_FIREBASE_API_KEY: envString(import.meta.env.VITE_FIREBASE_API_KEY, ''),
-  VITE_FIREBASE_AUTH_DOMAIN: envString(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, ''),
-  VITE_FIREBASE_PROJECT_ID: envString(import.meta.env.VITE_FIREBASE_PROJECT_ID, ''),
-  VITE_FIREBASE_APP_ID: envString(import.meta.env.VITE_FIREBASE_APP_ID, ''),
-  VITE_FIREBASE_MESSAGING_SENDER_ID: envString(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID, ''),
-
   // Features
   VITE_FEATURE_ANALYTICS: envBool(import.meta.env.VITE_FEATURE_ANALYTICS, true),
   VITE_FEATURE_NOTIFICATIONS: envBool(import.meta.env.VITE_FEATURE_NOTIFICATIONS, true),
@@ -102,10 +97,6 @@ const env = {
   VITE_GOOGLE_CLIENT_ID: envString(import.meta.env.VITE_GOOGLE_CLIENT_ID, ''),
   VITE_GOOGLE_MAPS_API_KEY: envString(import.meta.env.VITE_GOOGLE_MAPS_API_KEY, ''),
 
-  // Third-party
-  VITE_STRIPE_PUBLIC_KEY: envString(import.meta.env.VITE_STRIPE_PUBLIC_KEY, ''),
-  VITE_INTERCOM_APP_ID: envString(import.meta.env.VITE_INTERCOM_APP_ID, ''),
-
   // Public platforms (live product preview URLs)
   // Travio Ghana. This was keyed VITE_TRAVIO_AFRICA_URL, which collides by name
   // with the separate Travio Africa brand (travioafrica.com — config/brands.js),
@@ -130,7 +121,22 @@ const env = {
   // with no backend and no credentials; set VITE_STAYS_DATA_SOURCE=api to go
   // live, or `mock` to force the dataset in any mode.
   VITE_STAYS_DATA_SOURCE: envString(import.meta.env.VITE_STAYS_DATA_SOURCE, isDev ? 'mock' : 'api'),
+
+  // Dev write guard (lib/axios): a development build pointed at the live API
+  // only sends reads unless this is explicitly "true". Has no effect in
+  // production builds.
+  VITE_ALLOW_LIVE_WRITES: envBool(import.meta.env.VITE_ALLOW_LIVE_WRITES, false),
+
+  // A production build refuses to start in mock mode unless this is "true"
+  // (see config/dataSource.ts).
+  VITE_ALLOW_MOCK_IN_PROD: envBool(import.meta.env.VITE_ALLOW_MOCK_IN_PROD, false),
 };
+
+const staysDataSource = resolveDataSource({
+  value: env.VITE_STAYS_DATA_SOURCE,
+  isProductionBuild: Boolean(import.meta.env.PROD),
+  allowMockInProd: env.VITE_ALLOW_MOCK_IN_PROD,
+});
 
 // Warn in development if any critical values are missing or using defaults.
 // Use static property accesses only: a bare `import.meta.env` is inlined by
@@ -160,13 +166,6 @@ export const config = {
     apiBaseURL: env.VITE_AUTH_API_BASE_URL,
     tokenRefreshInterval: env.VITE_TOKEN_REFRESH_INTERVAL,
     sessionTimeout: env.VITE_SESSION_TIMEOUT,
-    firebase: {
-      apiKey: env.VITE_FIREBASE_API_KEY,
-      authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
-      projectId: env.VITE_FIREBASE_PROJECT_ID,
-      appId: env.VITE_FIREBASE_APP_ID,
-      messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    },
   },
 
   features: {
@@ -220,11 +219,6 @@ export const config = {
     googleMapsApiKey: env.VITE_GOOGLE_MAPS_API_KEY,
   },
 
-  integrations: {
-    stripePublicKey: env.VITE_STRIPE_PUBLIC_KEY,
-    intercomAppId: env.VITE_INTERCOM_APP_ID,
-  },
-
   support: {
     adminId: env.VITE_ADMIN_SUPPORT_ID,
   },
@@ -236,7 +230,11 @@ export const config = {
   },
 
   stays: {
-    dataSource: env.VITE_STAYS_DATA_SOURCE,
+    /** Always exactly "mock" or "api" — see config/dataSource.ts. */
+    dataSource: staysDataSource.source as DataSource,
+    /** Non-null when the configuration is unsafe; main.tsx refuses to start. */
+    configError: staysDataSource.error,
+    allowLiveWrites: env.VITE_ALLOW_LIVE_WRITES,
   },
 
   isDevelopment: () => env.VITE_APP_ENV === 'development',

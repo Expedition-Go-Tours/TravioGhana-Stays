@@ -1,388 +1,492 @@
-// @ts-nocheck
-// Migration marker: ported from JavaScript; props/data shapes are not annotated yet.
-// Remove this directive once the file is typed — `npm run typecheck` then enforces it.
-import { useState, useEffect, isValidElement } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useState, type ComponentType, type ReactNode } from "react";
+import { Link, NavLink, useLocation, useNavigate, type Location } from "react-router-dom";
 import { useSidebarStore } from "@/stores/sidebarStore";
 import { useAuthStore } from "@/stores/authStore";
 import { mockSessionEnabled } from "@/lib/mockSession";
-import { toast } from "sonner";
 import { loadSupplierProfile } from "@/features/auth/api";
 import api from "@/lib/axios";
-import {
-  LogOut,
-  ChevronLeft,
-  ChevronDown,
-  Home,
-  Calendar,
-  BadgeCheck,
-} from "@/features/stays/icons";
-import OptimizedImage from "@/components/shared/OptimizedImage";
+import { cn } from "@/lib/utils";
+import { BadgeCheck, ChevronDown, ChevronLeft, Home, LogOut } from "@/features/stays/icons";
 import { useTeamRole } from "@/hooks/useTeamRole";
+import { useBreakpoint } from "@/hooks/useMediaQuery";
 import { describeRoles } from "@/config/teamRoles";
 import { STAYS_NAV_GROUPS } from "@/config/staysNav";
 import { LIVE_SITES } from "@/lib/platforms";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Avatar, ConfirmDialog, Sheet, SheetContent, Tooltip } from "@/components/ui";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { MOBILE_NAV_ID } from "./shell";
 
-function extractBusinessName(businessInfo) {
-  if (!businessInfo) return null;
-  if (typeof businessInfo === "string") {
-    try { const p = JSON.parse(businessInfo); return p.businessName || p.displayName || p.legalBusinessName || null; } catch { return null; }
-  }
-  return businessInfo.businessName || businessInfo.displayName || businessInfo.legalBusinessName || null;
-}
+/* ── Business identity ─────────────────────────────────────────────────────
+ * The card describes the BUSINESS, whoever is signed in. A team member's own
+ * account is a plain `customer` account; `/suppliers/application/status` is
+ * resolved through the membership, so a member receives the owner's name,
+ * logo, verification status and join date. */
 
-// Dots keep the hues they always had. Only the label colours changed, and
-// that was forced rather than chosen: `text-white/70` on a white sidebar is
-// invisible. Each label now takes the hue of the dot beside it so the two
-// still read as one signal.
-const SIDEBAR_STATUS_STYLES = {
-  PENDING: { dot: "bg-amber-400", text: "text-amber-700", label: "Pending" },
-  UNDER_REVIEW: { dot: "bg-blue-400", text: "text-blue-700", label: "Under Review" },
-  APPROVED: { dot: "bg-blue-400", text: "text-blue-700", label: "Approved" },
-  ACTIVE: { dot: "bg-emerald-500", text: "text-emerald-700", label: "Verified" },
-  SUSPENDED: { dot: "bg-red-400", text: "text-red-600", label: "Suspended" },
-  REJECTED: { dot: "bg-red-400", text: "text-red-600", label: "Rejected" },
+type BusinessInfo = { businessName?: string; displayName?: string; legalBusinessName?: string } | string | null | undefined;
+type BusinessProfile = {
+  businessName?: string;
+  businessInfo?: BusinessInfo;
+  logoUrl?: string | null;
+  status?: string | null;
+  supplierProfile?: { status?: string };
+  supplierSince?: string;
+  createdAt?: string;
 };
 
-export default function Sidebar() {
-  const { isCollapsed, toggle, isMobileOpen, closeMobile } = useSidebarStore();
+function extractBusinessName(info: BusinessInfo): string | null {
+  if (!info) return null;
+  if (typeof info === "string") {
+    try {
+      const parsed = JSON.parse(info);
+      return parsed.businessName || parsed.displayName || parsed.legalBusinessName || null;
+    } catch {
+      return null;
+    }
+  }
+  return info.businessName || info.displayName || info.legalBusinessName || null;
+}
+
+const STATUS_LABELS: Record<string, { label: string; tone: "success" | "warning" | "info" | "danger" }> = {
+  PENDING: { label: "Pending", tone: "warning" },
+  UNDER_REVIEW: { label: "Under Review", tone: "info" },
+  APPROVED: { label: "Approved", tone: "info" },
+  ACTIVE: { label: "Verified", tone: "success" },
+  SUSPENDED: { label: "Suspended", tone: "danger" },
+  REJECTED: { label: "Rejected", tone: "danger" },
+};
+
+const TONE_TEXT = { success: "text-success", warning: "text-warning", info: "text-info", danger: "text-danger" } as const;
+const TONE_DOT = { success: "bg-success", warning: "bg-warning", info: "bg-info", danger: "bg-danger" } as const;
+
+type Identity = {
+  name: string;
+  logoUrl: string | null;
+  status: (typeof STATUS_LABELS)[string] | null;
+  roleLine: string | null;
+  memberSince: string | null;
+  settingsPath: string;
+};
+
+function useBusinessIdentity(): Identity {
   const user = useAuthStore((state) => state.user);
-  const supplierProfile = useAuthStore((state) => state.supplierProfile);
-  const location = useLocation();
-  const navigate = useNavigate();
-  const logoUrl = user?.logoUrl;
-  const [fetchedLogoUrl, setFetchedLogoUrl] = useState(null);
-  const [logoLoaded, setLogoLoaded] = useState(false);
-  const [business, setBusiness] = useState(null);
-  const [logoutConfirmOpen, setShowLogoutConfirm] = useState(false);
-  // Derived state: a collapsed sidebar can never show the confirm dialog.
-  // Expressing the reset during render avoids a setState-from-effect cascade.
-  const showLogoutConfirm = logoutConfirmOpen && !isCollapsed;
-  const { hasPermission, isOwner, teamRoles, storefronts } = useTeamRole();
+  const supplierProfile = useAuthStore((state) => state.supplierProfile) as BusinessProfile | null;
+  const { hasPermission, isOwner, teamRoles } = useTeamRole();
+  const [business, setBusiness] = useState<BusinessProfile | null>(null);
+  const [fetchedLogo, setFetchedLogo] = useState<{ url: string | null } | null>(null);
 
-  // Who the viewer is acting as. A team member's own account is a plain
-  // `customer` account, so testing `user.roles` alone hid the business card
-  // from every member: they were all looking at their own name and avatar
-  // instead of the business they work for.
-  const actsForSupplier =
-    Boolean(user?.roles?.includes("supplier")) || Boolean(supplierProfile) || teamRoles.length > 0;
+  const actsForSupplier = Boolean(user?.roles?.includes("supplier")) || Boolean(supplierProfile) || teamRoles.length > 0;
 
-  // A member without business-profile rights still gets their own Security tab,
-  // so the card falls back to the settings root instead of a hidden tab.
-  const canEditBusiness = hasPermission("settings.business");
-
-  // "Live Site": one destination renders as a plain link, two render as a menu.
-  // An empty answer — still loading, an internal admin, or a business holding
-  // no brand roles — falls back to Travio Ghana so the control never vanishes
-  // or flickers out while /my-role is in flight.
-  const liveSites = LIVE_SITES.filter((site) => (storefronts || []).includes(site.key));
-  const siteLinks = liveSites.length ? liveSites : [LIVE_SITES[0]];
-  const liveSiteIsMenu = siteLinks.length > 1;
-
-  // The Stays workspace keeps its three sections, rendered with the portal's
-  // own group-label treatment.
-  const navGroups = STAYS_NAV_GROUPS.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => !item.permission || hasPermission(item.permission)),
-  })).filter((group) => group.items.length > 0);
-
-  // This card is the BUSINESS, so it must show the business whoever is signed
-  // in. `/suppliers/application/status` is resolved server-side through the
-  // supplier membership, which means a team member receives the owner's name,
-  // logo, verification status and join date — their own account is a different
-  // person with (usually) no supplier profile at all.
   useEffect(() => {
     // Mock mode has no backend: the seeded session is the business.
     if (mockSessionEnabled || !actsForSupplier) return;
     let cancelled = false;
     loadSupplierProfile()
-      .then((profile) => { if (!cancelled) setBusiness(profile || null); })
+      .then((profile: BusinessProfile | null) => {
+        if (!cancelled) setBusiness(profile || null);
+      })
       .catch(() => {});
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [actsForSupplier]);
 
-  // Company logo is fetched directly from the backend on mount so it always
-  // reflects the server even after a fresh login/refresh (the auth store is
-  // hydrated from localStorage, which may be stale). The fetched value is also
-  // persisted so future refreshes keep it without another request each render.
+  // The logo is read from the server on mount (the stored user can be stale).
+  const isSupplierAccount = Boolean(user?.roles?.includes("supplier"));
   useEffect(() => {
-    if (mockSessionEnabled || !user?.roles?.includes("supplier")) return;
+    if (mockSessionEnabled || !isSupplierAccount) return;
     let cancelled = false;
     api
       .get("/users/me", { skipGlobalErrorHandler: true })
       .then((res) => {
-        if (cancelled) return;
         const fresh = res.data?.data?.user;
-        if (!fresh) return;
-        const logo = fresh.logoUrl || null;
-        setFetchedLogoUrl(logo);
-        setLogoLoaded(true);
-        useAuthStore.getState().updateUser({ logoUrl: logo, createdAt: fresh.createdAt });
+        if (cancelled || !fresh) return;
+        setFetchedLogo({ url: fresh.logoUrl || null });
+        useAuthStore.getState().updateUser({ logoUrl: fresh.logoUrl || null, createdAt: fresh.createdAt });
       })
       .catch(() => {});
-    return () => { cancelled = true; };
-  }, [user?.roles]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isSupplierAccount]);
 
-  // Name, logo, status and join date all describe the business. A member has
-  // none of their own, so the fetched account is the first choice, the profile
-  // sign-in already resolved through the membership is the second, and the
-  // viewer's own name only stands in when there is no business at all.
   const businessName =
     business?.businessName ||
     extractBusinessName(business?.businessInfo) ||
     extractBusinessName(supplierProfile?.businessInfo) ||
     supplierProfile?.businessName ||
     null;
+  const statusKey = business?.status || business?.supplierProfile?.status || supplierProfile?.status || "";
 
-  // The business logo wins over the viewer's own avatar: a team member has
-  // never uploaded one, so falling back keeps the owner unchanged.
-  const effectiveLogoUrl = business?.logoUrl || (logoLoaded ? fetchedLogoUrl : logoUrl);
-
-  const statusStyle =
-    SIDEBAR_STATUS_STYLES[
-      business?.status || business?.supplierProfile?.status || supplierProfile?.status
-    ] || null;
-
-  // "Member since" is when the business joined Travio, for every viewer.
-  const memberSince = business?.supplierSince || supplierProfile?.createdAt || user?.createdAt;
-
-  const handleLogout = async () => {
-    await useAuthStore.getState().logout();
-    navigate("/login", { replace: true });
+  return {
+    name: businessName || user?.name || "Supplier",
+    logoUrl: business?.logoUrl || (fetchedLogo ? fetchedLogo.url : (user?.logoUrl as string | undefined) ?? null),
+    status: STATUS_LABELS[statusKey] ?? null,
+    // The badge describes the business; this line describes the person.
+    roleLine: isOwner ? null : describeRoles(teamRoles) || "Team member",
+    memberSince: business?.supplierSince || supplierProfile?.createdAt || (user?.createdAt as string | undefined) || null,
+    // A member without business-profile rights still has their own Security tab.
+    settingsPath: hasPermission("settings.business") ? "/stays/settings?tab=profile" : "/stays/settings",
   };
+}
 
-  function NavItem({ item, isCollapsed, closeMobile }: any) {
-    // Active state is computed here (not read from NavLink) so config can
-    // express `end` (exact match for workspace roots such as `/stays`) and
-    // `match` (query-aware items such as Settings → Team).
-    const isActive = item.match
-      ? item.match(location)
-      : item.end
-        ? location.pathname === item.path
-        : location.pathname === item.path || location.pathname.startsWith(item.path + "/");
+/* ── Pieces ────────────────────────────────────────────────────────────────
+ * The desktop sidebar shrinks to an icon rail on tablets (CSS, md–lg) and when
+ * collapsed on desktop (`data-rail`). Text in the rail stays available to
+ * screen readers (sr-only); purely decorative extras are hidden outright. */
 
-    // The Stays nav stores the icon component itself (so search can reuse the
-    // config with iconName strings). Icon components are forwardRef objects —
-    // `typeof` cannot tell them apart from elements, so use isValidElement.
-    const icon = isValidElement(item.icon) ? item.icon : <item.icon size={20} />;
+type Mode = "aside" | "drawer";
 
-    if (item.disabled) {
-      return (
-        <button
-          onClick={() => toast.info("Coming soon")}
-          className={`relative flex items-center gap-6 w-full text-left text-slate-300 cursor-default select-none ${isCollapsed ? "justify-center px-2 py-2.5" : "px-3 py-2.5"}`}
-          title={isCollapsed ? item.label : undefined}
-        >
-          <span className="shrink-0">{icon}</span>
-          {!isCollapsed && <span className="text-sm font-medium truncate">{item.label}</span>}
-        </button>
-      );
-    }
+const railSrOnly = "md:max-lg:sr-only group-data-[rail=true]/sidebar:sr-only";
+const railHidden = "md:max-lg:hidden group-data-[rail=true]/sidebar:hidden";
+const railCenter =
+  "md:max-lg:justify-center md:max-lg:px-0 group-data-[rail=true]/sidebar:justify-center group-data-[rail=true]/sidebar:px-0";
 
+type NavEntry = {
+  label: string;
+  path: string;
+  icon: ComponentType<{ size?: number; weight?: string; className?: string }>;
+  end?: boolean;
+  match?: (location: Location) => boolean;
+};
+
+function isActive(item: NavEntry, location: Location) {
+  if (item.match) return item.match(location);
+  if (item.end) return location.pathname === item.path;
+  return location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+}
+
+function NavItem({
+  item,
+  mode,
+  showTooltip,
+  onNavigate,
+}: {
+  item: NavEntry;
+  mode: Mode;
+  showTooltip: boolean;
+  onNavigate?: () => void;
+}) {
+  const location = useLocation();
+  const active = isActive(item, location);
+  const Icon = item.icon;
+
+  const link = (
+    <NavLink
+      to={item.path}
+      end={item.end}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "relative flex h-11 items-center gap-3 rounded-control px-3 text-[0.9375rem] font-medium transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active ? "bg-brand-soft font-semibold text-brand-ink" : "text-body hover:bg-surface-strong hover:text-ink",
+        mode === "aside" && railCenter,
+      )}
+    >
+      {active && (
+        <span aria-hidden="true" className="absolute -left-3 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-brand" />
+      )}
+      <Icon size={20} weight={active ? "fill" : "regular"} className="shrink-0" />
+      <span className={cn("truncate", mode === "aside" && railSrOnly)}>{item.label}</span>
+    </NavLink>
+  );
+
+  return showTooltip ? (
+    <Tooltip content={item.label} side="right">
+      {link}
+    </Tooltip>
+  ) : (
+    link
+  );
+}
+
+function LiveSite({ mode }: { mode: Mode }) {
+  const { storefronts } = useTeamRole();
+  // One destination is a link, two are a menu. An empty answer (still loading,
+  // or no brand roles) falls back to Travio Ghana so the control never vanishes.
+  const sites = LIVE_SITES.filter((site) => (storefronts || []).includes(site.key));
+  const links = sites.length ? sites : [LIVE_SITES[0]];
+  const className = cn(
+    "inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-control px-3 text-sm font-medium text-muted transition-colors",
+    "hover:bg-surface-strong hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    // On the tablet rail it shrinks to its icon (the label stays for screen readers).
+    mode === "aside" && "md:max-lg:px-0 [&>span]:md:max-lg:sr-only [&>svg:last-child]:md:max-lg:hidden",
+  );
+
+  if (links.length > 1) {
     return (
-      <NavLink
-        to={item.path}
-        end={item.end}
-        onClick={closeMobile}
-        className={() =>
-          `relative flex items-center gap-6 w-full rounded-lg text-sm font-medium transition-all duration-200 group ${
-            isActive
-              ? "bg-sidebar-hover text-sidebar-active"
-              : "text-sidebar-text hover:bg-sidebar-hover hover:text-sidebar-active"
-          } ${isCollapsed ? "justify-center px-2 py-2.5" : "px-3 py-2.5"}`
-        }
-        title={isCollapsed ? item.label : undefined}
-      >
-        {isActive && (
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[5px] h-[34px] bg-sidebar-active rounded-r-full" />
-        )}
-        <span className="shrink-0 relative">{icon}</span>
-        {!isCollapsed && (
-          <span className="truncate tracking-normal text-[15px]">{item.label}</span>
-        )}
-        {isCollapsed && (
-          <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2.5 py-1.5 bg-white text-[#333] text-xs font-medium rounded-lg shadow-lg border border-[#eaeaea] whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-[70]">
-            {item.label}
-          </div>
-        )}
-      </NavLink>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button type="button" className={className} aria-label="Live Site">
+            <Home size={18} />
+            <span>Live Site</span>
+            <ChevronDown size={12} className="opacity-70" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" sideOffset={6} className="w-60">
+          {links.map((site) => (
+            <DropdownMenuItem
+              key={site.key}
+              onSelect={() => window.open(site.url, "_blank", "noopener,noreferrer")}
+              className="gap-2.5"
+            >
+              <img src={site.favicon} alt="" width={16} height={16} className="shrink-0 rounded-[3px]" />
+              <span className="text-sm">{site.name}</span>
+              <span className="ml-auto text-caption text-muted">{site.domain}</span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   }
 
   return (
+    <a href={links[0].url} target="_blank" rel="noopener noreferrer" className={className} aria-label="Live Site">
+      <Home size={18} />
+      <span>Live Site</span>
+    </a>
+  );
+}
+
+function BusinessCard({ identity, mode, onNavigate }: { identity: Identity; mode: Mode; onNavigate?: () => void }) {
+  const aside = mode === "aside";
+  return (
+    <Link
+      to={identity.settingsPath}
+      onClick={onNavigate}
+      className={cn(
+        "flex items-center gap-3 rounded-card border border-hairline bg-surface-soft p-3 transition-colors",
+        "hover:border-hairline-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        aside &&
+          "md:max-lg:justify-center md:max-lg:border-transparent md:max-lg:bg-transparent md:max-lg:p-1.5 group-data-[rail=true]/sidebar:justify-center group-data-[rail=true]/sidebar:border-transparent group-data-[rail=true]/sidebar:bg-transparent group-data-[rail=true]/sidebar:p-1.5",
+      )}
+    >
+      <Avatar src={identity.logoUrl} name={identity.name} size="md" />
+      <span className={cn("min-w-0 flex-1", aside && railSrOnly)}>
+        <span className="block truncate text-sm font-bold text-ink" title={identity.name}>
+          {identity.name}
+        </span>
+        {identity.status ? (
+          <span className={cn("mt-0.5 flex items-center gap-1 text-caption font-semibold", TONE_TEXT[identity.status.tone])}>
+            {identity.status.label === "Verified" ? (
+              <BadgeCheck size={13} className="shrink-0" aria-hidden="true" />
+            ) : (
+              <span aria-hidden="true" className={cn("h-1.5 w-1.5 rounded-full", TONE_DOT[identity.status.tone])} />
+            )}
+            {identity.status.label}
+          </span>
+        ) : (
+          !identity.roleLine && <span className="mt-0.5 block text-caption text-muted">Administrator</span>
+        )}
+        {identity.roleLine && (
+          <span className="mt-0.5 block truncate text-caption text-muted" title="Your team role">
+            {identity.roleLine}
+          </span>
+        )}
+        {identity.memberSince && (
+          <span className="mt-0.5 block text-caption text-muted">
+            Member since {new Date(identity.memberSince).getFullYear()}
+          </span>
+        )}
+      </span>
+    </Link>
+  );
+}
+
+function SidebarBody({
+  identity,
+  mode,
+  showTooltips,
+  onNavigate,
+  onSignOut,
+  header,
+}: {
+  identity: Identity;
+  mode: Mode;
+  showTooltips: boolean;
+  onNavigate?: () => void;
+  onSignOut: () => void;
+  header?: ReactNode;
+}) {
+  const { hasPermission } = useTeamRole();
+  const groups = STAYS_NAV_GROUPS.map((group) => ({
+    ...group,
+    items: (group.items as (NavEntry & { permission?: string | null })[]).filter(
+      (item) => !item.permission || hasPermission(item.permission),
+    ),
+  })).filter((group) => group.items.length > 0);
+  const aside = mode === "aside";
+
+  return (
+    <>
+      {header}
+      <div className={cn("shrink-0 px-3 pb-2 pt-3", aside && "md:max-lg:px-2 group-data-[rail=true]/sidebar:px-2")}>
+        <BusinessCard identity={identity} mode={mode} onNavigate={onNavigate} />
+      </div>
+
+      <nav aria-label="Main navigation" className="scrollbar-none min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-3">
+        {groups.map((group, index) => (
+          <div key={group.label} className={cn(index > 0 && "mt-4")}>
+            <p className={cn("px-3 pb-1.5 text-overline font-bold uppercase text-muted", aside && railHidden)}>
+              {group.label.charAt(0) + group.label.slice(1).toLowerCase()}
+            </p>
+            {index > 0 && aside && (
+              <span
+                aria-hidden="true"
+                className="mx-2 mb-2 hidden h-px bg-hairline md:max-lg:block group-data-[rail=true]/sidebar:block"
+              />
+            )}
+            <ul className="space-y-0.5">
+              {group.items.map((item) => (
+                <li key={item.path}>
+                  <NavItem item={item} mode={mode} showTooltip={showTooltips} onNavigate={onNavigate} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </nav>
+
+      <div className="shrink-0 border-t border-hairline p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <SignOutButton mode={mode} showTooltip={showTooltips} onClick={onSignOut} />
+      </div>
+    </>
+  );
+}
+
+function SignOutButton({ mode, showTooltip, onClick }: { mode: Mode; showTooltip: boolean; onClick: () => void }) {
+  const button = (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex h-11 w-full items-center gap-3 rounded-control px-3 text-[0.9375rem] font-medium text-muted transition-colors",
+        "hover:bg-danger-soft hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        mode === "aside" && railCenter,
+      )}
+    >
+      <LogOut size={20} className="shrink-0" />
+      <span className={cn(mode === "aside" && railSrOnly)}>Sign out</span>
+    </button>
+  );
+  return showTooltip ? (
+    <Tooltip content="Sign out" side="right">
+      {button}
+    </Tooltip>
+  ) : (
+    button
+  );
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+
+export default function Sidebar() {
+  const { isCollapsed, toggle, isMobileOpen, closeMobile } = useSidebarStore();
+  const identity = useBusinessIdentity();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const atLeastMd = useBreakpoint("md");
+  const atLeastLg = useBreakpoint("lg");
+  // Tooltips only where the labels are hidden: the tablet rail and the collapsed desktop rail.
+  const railShowsTooltips = atLeastMd && (!atLeastLg || isCollapsed);
+
+  // The drawer closes on any navigation (links, the profile card, programmatic
+  // redirects) and when the window grows past the phone layout.
+  useEffect(() => {
+    closeMobile();
+  }, [location.pathname, location.search, closeMobile]);
+  useEffect(() => {
+    if (atLeastMd) closeMobile();
+  }, [atLeastMd, closeMobile]);
+
+  const signOut = async () => {
+    setSigningOut(true);
+    try {
+      await useAuthStore.getState().logout();
+    } finally {
+      setSigningOut(false);
+      setConfirmSignOut(false);
+    }
+    navigate("/login", { replace: true });
+  };
+
+  const askSignOut = () => {
+    closeMobile();
+    setConfirmSignOut(true);
+  };
+
+  return (
     <>
       <aside
-        className={`fixed left-0 top-[var(--preview-banner-height)] h-[calc(100vh_-_var(--preview-banner-height))] bg-sidebar-bg border-r border-sidebar-border transition-all duration-300 z-50 flex flex-col
-          ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
-          ${isCollapsed ? "lg:w-[64px] lg:translate-x-0" : "lg:w-[270px] lg:translate-x-0"}
-          w-[260px]`}
+        id="app-sidebar"
+        aria-label="Workspace"
+        data-rail={isCollapsed ? "true" : "false"}
+        className={cn(
+          "group/sidebar fixed bottom-0 left-0 top-[var(--preview-banner-height)] z-30 hidden w-[var(--nav-w)] flex-col",
+          "border-r border-hairline bg-surface transition-[width] duration-200 md:flex",
+        )}
       >
-        {/* Live Site + collapse toggle share one row. The store control is
-            expanded-only: the 64px collapsed rail has no room for two buttons,
-            and justify-center would push them past its edges. */}
-        <div className={`flex shrink-0 ${isCollapsed ? "justify-center px-2 pt-2 pb-1" : "items-center justify-between px-3 pt-2 pb-1"}`}>
-          {!isCollapsed && (liveSiteIsMenu ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="flex items-center gap-1.5 text-sidebar-muted hover:text-sidebar-text hover:bg-slate-100 rounded-lg transition-all duration-200 p-1.5"
-                  title="Live Site — choose which storefront to open"
-                >
-                  <Home size={15} strokeWidth={2.5} />
-                  <span className="text-xs font-medium whitespace-nowrap">Live Site</span>
-                  <ChevronDown size={12} strokeWidth={2.5} className="opacity-70" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" sideOffset={6} className="w-60">
-                {siteLinks.map((site) => (
-                  <DropdownMenuItem
-                    key={site.key}
-                    onSelect={() => window.open(site.url, "_blank", "noopener,noreferrer")}
-                    className="gap-2.5"
-                  >
-                    <img src={site.favicon} alt="" width={16} height={16} className="shrink-0 rounded-[3px]" />
-                    <span className="text-sm">{site.name}</span>
-                    <span className="ml-auto text-[10px] text-slate-400">{site.domain}</span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <a
-              href={siteLinks[0].url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-sidebar-muted hover:text-sidebar-text hover:bg-slate-100 rounded-lg transition-all duration-200 p-1.5"
-              title={`Live Site — opens ${siteLinks[0].domain} in a new tab`}
-            >
-              <Home size={15} strokeWidth={2.5} />
-              <span className="text-xs font-medium whitespace-nowrap">Live Site</span>
-            </a>
-          ))}
-          <button
-            onClick={() => isMobileOpen ? closeMobile() : toggle()}
-            className="flex items-center gap-1.5 text-sidebar-muted hover:text-sidebar-text hover:bg-slate-100 rounded-lg transition-all duration-200 p-1.5"
-            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            <ChevronLeft size={15} strokeWidth={2.5} className={`transition-transform duration-200 ${isCollapsed ? "rotate-180" : ""}`} />
-            {!isCollapsed && <span className="text-xs font-medium whitespace-nowrap">Collapse sidebar</span>}
-          </button>
-        </div>
-
-        {/* Profile — a plain tinted surface. The blur is gone deliberately: it
-            was only ever there to let the dark background show through. */}
-        <div
-          onClick={() =>
-            navigate(canEditBusiness ? "/stays/settings?tab=profile" : "/stays/settings")
+        <SidebarBody
+          identity={identity}
+          mode="aside"
+          showTooltips={railShowsTooltips}
+          onSignOut={askSignOut}
+          header={
+            <div className={cn("flex h-16 shrink-0 items-center justify-between gap-2 border-b border-hairline px-3", railCenter)}>
+              {/* The collapsed rail has no room for it; the tablet rail hides it with CSS. */}
+              {!isCollapsed && <LiveSite mode="aside" />}
+              <button
+                type="button"
+                onClick={toggle}
+                aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                aria-expanded={!isCollapsed}
+                aria-controls="app-sidebar"
+                className={cn(
+                  "hidden h-11 w-11 shrink-0 items-center justify-center rounded-control text-muted transition-colors lg:inline-flex",
+                  "hover:bg-surface-strong hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                )}
+              >
+                <ChevronLeft size={18} className={cn("transition-transform duration-200", isCollapsed && "rotate-180")} />
+              </button>
+            </div>
           }
-          className={`shrink-0 cursor-pointer ${
-            isCollapsed
-              ? "py-3 px-2"
-              : "bg-slate-50 border border-sidebar-border rounded-[18px] p-6 mx-3 mb-3"
-          }`}
-        >
-          <div className="flex flex-col items-center gap-2">
-            <div className="relative shrink-0">
-              {effectiveLogoUrl ? (
-                <div className={`${isCollapsed ? "w-9 h-9" : "w-20 h-20"} rounded-full overflow-hidden ring-[3px] ring-slate-200 shadow-[0_2px_8px_rgba(15,23,42,0.10)]`}>
-                  <OptimizedImage src={effectiveLogoUrl} width={isCollapsed ? 36 : 80} className="w-full h-full object-cover" />
-                </div>
-              ) : (
-                <div className={`${isCollapsed ? "w-9 h-9" : "w-20 h-20"} rounded-full bg-slate-200 flex items-center justify-center ring-[3px] ring-slate-200 shadow-[0_2px_8px_rgba(15,23,42,0.10)]`}>
-                  <span className={`${isCollapsed ? "text-sm" : "text-2xl"} font-bold text-slate-600`}>
-                    {(businessName || user?.name || "S").charAt(0).toUpperCase()}
-                  </span>
-                </div>
-              )}
-            </div>
-            {!isCollapsed && (
-              <div className="min-w-0 w-full text-center">
-                <p className="text-[15px] font-bold text-sidebar-text truncate leading-tight" title={businessName || user?.name}>
-                  {businessName || user?.name || "Supplier"}
-                </p>
-                {statusStyle ? (
-                  <div className="flex items-center justify-center gap-1 mt-1">
-                    {statusStyle.label === "Verified" ? (
-                      <BadgeCheck size={13} className="text-emerald-600 shrink-0" />
-                    ) : (
-                      <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
-                    )}
-                    <span className={`text-[11px] font-medium ${statusStyle.text}`}>{statusStyle.label}</span>
-                  </div>
-                ) : (
-                  <span className="text-[11px] text-sidebar-muted block mt-1">Administrator</span>
-                )}
-                {/* A member still needs to see what they can do: the badge above
-                    describes the business, this line describes the person. The
-                    owner keeps the single "Administrator" line. */}
-                {!isOwner && (
-                  <span className="text-[11px] text-sidebar-muted block mt-1" title="Your team role">
-                    {describeRoles(teamRoles) || "Team member"}
-                  </span>
-                )}
-                {memberSince && (
-                  <div className="flex items-center justify-center gap-1 mt-2 text-xs font-normal tracking-tight text-sidebar-muted hover:text-sidebar-text transition-colors duration-200">
-                    <Calendar size={14} className="opacity-60 shrink-0" />
-                    <span>Member since {new Date(memberSince).getFullYear()}</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 min-h-0 scrollbar-none">
-          {navGroups.map((group) => (
-            <div key={group.label || "main"}>
-              {group.label && !isCollapsed && (
-                <div className="px-6 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  {group.label}
-                </div>
-              )}
-              <ul className={`space-y-[2px] ${isCollapsed ? "px-2" : "px-3"}`}>
-                {group.items.map((item) => (
-                  <li key={item.path}>
-                    <NavItem item={item} isCollapsed={isCollapsed} closeMobile={closeMobile} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </nav>
-
-        {/* Sign Out */}
-        <div className={`border-t border-sidebar-border shrink-0 relative ${isCollapsed ? "p-2" : "px-3 py-2"}`}>
-          <button
-            onClick={() => setShowLogoutConfirm(!showLogoutConfirm)}
-            onBlur={() => setTimeout(() => setShowLogoutConfirm(false), 200)}
-            className={`flex items-center gap-3 w-full rounded-lg text-sm font-medium transition-all duration-200 text-sidebar-muted hover:text-red-600 hover:bg-red-50 ${isCollapsed ? "justify-center p-2" : "px-3 py-2.5"}`}
-          >
-            <LogOut size={17} />
-            {!isCollapsed && <span className="text-[15px]">Sign out</span>}
-          </button>
-          {showLogoutConfirm && (
-            <div className={`absolute bottom-full mb-2 bg-white rounded-xl shadow-xl shadow-black/10 p-3 min-w-[200px] z-[70] border border-[#eaeaea] ${isCollapsed ? "left-0" : "left-1/2 -translate-x-1/2"}`}>
-              <p className="text-xs font-medium text-[#464255] mb-2.5 text-center whitespace-nowrap">Sign out of dashboard?</p>
-              <div className="flex gap-1.5">
-                <button
-                  onClick={() => setShowLogoutConfirm(false)}
-                  className="flex-1 px-3 py-1.5 text-xs font-medium text-[#64748b] bg-[#f5f5f5] hover:bg-[#eaeaea] rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="flex-1 px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
-                >
-                  Sign out
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        />
       </aside>
+
+      {/* Phones: the same navigation in a drawer (focus trap, Escape, scroll lock). */}
+      <Sheet open={isMobileOpen} onOpenChange={(open) => (open ? undefined : closeMobile())}>
+        <SheetContent
+          id={MOBILE_NAV_ID}
+          side="left"
+          title="Menu"
+          className="w-[min(88vw,20rem)] p-0"
+          bodyClassName="flex flex-col p-0"
+          // Opened from the header's menu button (not a Radix trigger), so hand focus back to it.
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            document.querySelector<HTMLElement>(`[aria-controls="${MOBILE_NAV_ID}"]`)?.focus();
+          }}
+        >
+          <div className="px-3 pt-2">
+            <LiveSite mode="drawer" />
+          </div>
+          <SidebarBody identity={identity} mode="drawer" showTooltips={false} onNavigate={closeMobile} onSignOut={askSignOut} />
+        </SheetContent>
+      </Sheet>
+
+      <ConfirmDialog
+        open={confirmSignOut}
+        onOpenChange={setConfirmSignOut}
+        title="Sign out of the dashboard?"
+        description="You'll need to sign in again to manage your stays."
+        confirmLabel="Sign out"
+        cancelLabel="Stay signed in"
+        loading={signingOut}
+        onConfirm={signOut}
+      />
     </>
   );
 }

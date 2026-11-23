@@ -2,6 +2,7 @@ import { Check, ChevronLeft, Minus, Plus, PlusCircle } from "@/features/stays/ic
 import StaysButton from "../components/StaysButton";
 import RoomTypesSection from "../components/RoomTypesSection";
 import { StaysField, StaysInput, StaysSelect, StaysTextarea } from "../components/StaysForm";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 /**
  * STEP 8 — Property details, Booking's "Property details" page: sleeping
@@ -402,7 +403,7 @@ export default function Step08PropertyDetails({
         <RoomTypesSection
           rooms={property.rooms || []}
           ratePlans={property.ratePlans || []}
-          currency={property.currency || "GHS"}
+          currency={property.currency || DEFAULT_CURRENCY}
           suggestedName={suggestedRoomName}
           defaultGuests={property.maxGuests || 2}
           defaultPrice={Number(property.pricePerNight) || 29}

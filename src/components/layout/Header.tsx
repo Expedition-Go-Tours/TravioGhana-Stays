@@ -1,39 +1,49 @@
-import { ChevronDown, LogOut, User, Mail, Loader2, Menu } from "@/features/stays/icons";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ChevronDown, LogOut, User, Mail, Loader2, Menu, Sun, Moon, Monitor } from "@/features/stays/icons";
 import StaysNotificationBell from "@/features/stays/components/notifications/StaysNotificationBell";
 import SearchDropdown from "@/components/layout/SearchDropdown";
 import { useSidebarStore } from "@/stores/sidebarStore";
 import { useAuthStore } from "@/stores/authStore";
+import { useThemeStore, type ThemeMode } from "@/stores/themeStore";
 import { useTeamRole } from "@/hooks/useTeamRole";
 import { describeRoles } from "@/config/teamRoles";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
+import { Avatar } from "@/components/ui";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
-import OptimizedImage from "@/components/shared/OptimizedImage";
-import { SHELL_GUTTER } from "./shell";
+import { HEADER_ICON_BUTTON, MOBILE_NAV_ID, SHELL_GUTTER } from "./shell";
 import logoSrc from "@/assets/TravioGhana_Logo.svg";
+
+const THEME_OPTIONS: { value: ThemeMode; label: string; Icon: typeof Sun }[] = [
+  { value: "light", label: "Light", Icon: Sun },
+  { value: "dark", label: "Dark", Icon: Moon },
+  { value: "system", label: "System", Icon: Monitor },
+];
 
 export default function Header() {
   const navigate = useNavigate();
-  const { isCollapsed, isMobileOpen, toggleMobile } = useSidebarStore();
+  const isMobileOpen = useSidebarStore((state) => state.isMobileOpen);
+  const openMobile = useSidebarStore((state) => state.openMobile);
   const user = useAuthStore((state) => state.user);
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const themeMode = useThemeStore((state) => state.mode);
+  const setThemeMode = useThemeStore((state) => state.setMode);
 
-  const displayName = user?.name || "Admin User";
-  // A team member's own account carries `roles: ["customer"]` — the role they hold
-  // in the business comes through the membership, not through their own roles, so
-  // reading `user.roles` labelled every member "Customer" (and the owner
-  // "supplier"). Say what the person can do, as the sidebar card already does.
+  const displayName = user?.name || "Your account";
+  const avatarSrc = (user?.avatar || user?.photoURL || null) as string | null;
+  // A team member's own account carries `roles: ["customer"]`; the role they
+  // hold in the business comes through the membership. Say what they can do.
   const { isOwner, teamRoles } = useTeamRole();
-  const displayRole = isOwner
-    ? "Administrator"
-    : describeRoles(teamRoles) || "Team member";
-  const avatarLetter = displayName?.charAt(0)?.toUpperCase() || "A";
+  const displayRole = isOwner ? "Administrator" : describeRoles(teamRoles) || "Team member";
 
   const handleLogout = async () => {
     if (logoutLoading) return;
@@ -44,103 +54,103 @@ export default function Header() {
 
   return (
     <header
-      className={`fixed top-[var(--preview-banner-height)] right-0 h-16 bg-white border-b border-[#eaeaea] flex items-center ${SHELL_GUTTER} z-40 transition-all duration-300 ${
-        isCollapsed ? "lg:left-[64px]" : "lg:left-[270px]"
-      } left-0`}
-    >
-      {/* Mobile: Menu toggle */}
-      {!isMobileOpen && (
-        <button
-          onClick={toggleMobile}
-          className="lg:hidden p-1.5 rounded-lg text-[#065f46] hover:bg-[#065f46]/10 transition-colors mr-1 sm:mr-2 shrink-0"
-          aria-label="Toggle menu"
-        >
-          <Menu size={16} />
-        </button>
+      className={cn(
+        "fixed right-0 top-[var(--preview-banner-height)] z-(--z-header) flex h-16 items-center gap-1 sm:gap-2",
+        "left-0 border-b border-hairline bg-surface/90 backdrop-blur-md transition-[left] duration-200 md:left-[var(--nav-w)]",
+        SHELL_GUTTER,
       )}
+    >
+      {/* Phones: opens the navigation drawer. Always mounted, so nothing shifts. */}
+      <button
+        type="button"
+        onClick={openMobile}
+        aria-label="Open menu"
+        aria-expanded={isMobileOpen}
+        aria-controls={MOBILE_NAV_ID}
+        className={cn(HEADER_ICON_BUTTON, "-ml-2 md:hidden")}
+      >
+        <Menu size={22} />
+      </button>
 
-      {/* Left: Logo */}
-      <div className="flex items-center shrink-0 mr-2 lg:mr-4">
-        <a
-          href="/stays"
-          onClick={(e) => { e.preventDefault(); navigate('/stays') }}
-          className="flex items-center"
-        >
-          <img src={logoSrc} alt="Travio Ghana" className="w-[100px] sm:w-[140px] lg:w-[180px] h-auto" />
-        </a>
-      </div>
+      <Link
+        to="/stays"
+        className="flex h-11 shrink-0 items-center rounded-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-white dark:px-2"
+      >
+        <img src={logoSrc} alt="Travio Ghana — Stays dashboard home" className="h-auto w-[108px] sm:w-[140px] lg:w-[160px] dark:w-[96px] sm:dark:w-[124px]" />
+      </Link>
 
-      {/* Center: Search — centered with controlled width */}
-      <div className="flex-1 flex items-center justify-end sm:justify-center min-w-0 px-2 lg:px-4">
-        <div className="w-auto sm:w-full max-w-sm">
+      <div className="flex min-w-0 flex-1 items-center justify-end sm:justify-center sm:px-4">
+        <div className="w-auto sm:w-full sm:max-w-md">
           <SearchDropdown />
         </div>
       </div>
 
-      {/* Right: Notifications + Profile */}
-      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 ml-2 lg:ml-4">
+      <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         <StaysNotificationBell />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 sm:gap-3 pl-1.5 sm:pl-3 border-l border-[#eaeaea] hover:bg-[#f5f5f5] rounded-lg py-1 pr-1.5 sm:pr-2 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#065f46]/30">
-              <div className="text-right hidden sm:block">
-                <p className="text-xs font-medium text-slate-700">{displayName}</p>
-                <p className="text-[10px] text-slate-400 capitalize">{displayRole}</p>
-              </div>
-              <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-[#044b3b] shrink-0 ring-2 ring-[#044b3b]/10">
-                {(user?.avatar || user?.photoURL) ? (
-                  <OptimizedImage src={user.avatar || user.photoURL} width={32} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-white font-medium text-[11px]">{avatarLetter}</div>
-                )}
-              </div>
-              <ChevronDown size={11} className="text-slate-400 hidden sm:block" />
+            <button
+              type="button"
+              className={cn(
+                "flex h-11 min-w-11 items-center justify-center gap-2.5 rounded-control px-1 transition-colors sm:px-2",
+                "hover:bg-surface-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              )}
+            >
+              {/* The name is built from the text itself, so what is read matches what is shown. */}
+              <span className="sr-only">Account menu: </span>
+              <span className="sr-only lg:hidden">{displayName}</span>
+              <span className="hidden text-right lg:block">
+                <span className="block max-w-40 truncate text-sm font-semibold text-ink">{displayName}</span>{" "}
+                <span className="block text-caption text-muted">{displayRole}</span>
+              </span>
+              <Avatar src={avatarSrc} name={displayName} size="sm" decorative className="bg-brand text-on-brand" />
+              <ChevronDown size={14} className="hidden text-muted sm:block" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64 p-0 overflow-hidden">
-            <div className="h-1.5 bg-[#065f46]" />
-            <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-slate-100">
-              <div className="w-10 h-10 rounded-full overflow-hidden bg-[#044b3b] shrink-0 ring-2 ring-[#044b3b]/10">
-                {(user?.avatar || user?.photoURL) ? (
-                  <OptimizedImage src={user.avatar || user.photoURL} width={40} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-white text-sm font-semibold">{avatarLetter}</div>
-                )}
-              </div>
+          <DropdownMenuContent align="end" className="w-72 p-0">
+            <div className="flex items-center gap-3 border-b border-hairline px-4 py-4">
+              <Avatar src={avatarSrc} name={displayName} size="md" className="bg-brand text-on-brand" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-slate-800 truncate">{displayName}</p>
-                <p className="text-xs text-slate-400 truncate capitalize">{displayRole}</p>
+                <p className="truncate text-sm font-semibold text-ink">{displayName}</p>
+                <p className="truncate text-caption text-muted">{displayRole}</p>
+                {user?.email && (
+                  <p className="mt-0.5 flex items-center gap-1.5 truncate text-caption text-muted">
+                    <Mail size={12} className="shrink-0" />
+                    <span className="truncate">{user.email}</span>
+                  </p>
+                )}
               </div>
             </div>
             <div className="p-1.5">
-              <DropdownMenuItem
-                onClick={() => navigate("/stays/settings")}
-                className="rounded-lg"
-              >
-                <User size={15} className="text-slate-400" />
-                Profile Settings
+              <DropdownMenuItem onSelect={() => navigate("/stays/settings")} className="min-h-11">
+                <User size={16} className="text-muted" />
+                Profile settings
               </DropdownMenuItem>
-              {user?.email && (
-                <div className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-400 mx-1">
-                  <Mail size={15} className="text-slate-300 shrink-0" />
-                  <span className="truncate">{user.email}</span>
-                </div>
-              )}
+            </div>
+            <DropdownMenuSeparator />
+            <div className="p-1.5">
+              <DropdownMenuLabel className="px-3 pb-1 pt-1 text-overline font-semibold uppercase text-muted">
+                Theme
+              </DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={themeMode} onValueChange={(value: string) => setThemeMode(value as ThemeMode)}>
+                {THEME_OPTIONS.map(({ value, label, Icon }) => (
+                  <DropdownMenuRadioItem key={value} value={value} className="min-h-11 gap-2">
+                    <Icon size={16} className="text-muted" />
+                    {label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
             </div>
             <DropdownMenuSeparator />
             <div className="p-1.5">
               <DropdownMenuItem
-                onClick={handleLogout}
+                onSelect={handleLogout}
                 disabled={logoutLoading}
-                className="rounded-lg text-red-500 focus:text-red-600 focus:bg-red-50"
+                className="min-h-11 text-danger focus:bg-danger-soft focus:text-danger"
               >
-                {logoutLoading ? (
-                  <Loader2 size={15} className="animate-spin" />
-                ) : (
-                  <LogOut size={15} />
-                )}
-                {logoutLoading ? "Please wait..." : "Sign Out"}
+                {logoutLoading ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
+                {logoutLoading ? "Signing out…" : "Sign out"}
               </DropdownMenuItem>
             </div>
           </DropdownMenuContent>

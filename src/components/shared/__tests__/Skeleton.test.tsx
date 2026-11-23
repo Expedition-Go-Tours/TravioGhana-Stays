@@ -38,7 +38,7 @@ describe('Skeleton', () => {
       const skeleton = container.firstChild;
       
       expect(skeleton).toHaveClass('h-4');
-      expect(skeleton).toHaveClass('rounded');
+      expect(skeleton).toHaveClass('rounded-md');
     });
 
     it('should render circular variant', () => {
@@ -73,7 +73,7 @@ describe('Skeleton', () => {
   describe('TableSkeleton', () => {
     it('should render with default rows and columns', () => {
       const { container } = render(<TableSkeleton />);
-      const wrapper = container.querySelector('.bg-white.rounded-lg.border');
+      const wrapper = container.querySelector('.bg-surface.rounded-card.border');
       
       expect(wrapper).toBeInTheDocument();
     });
@@ -96,21 +96,21 @@ describe('Skeleton', () => {
     it('should have table structure', () => {
       const { container } = render(<TableSkeleton />);
       
-      expect(container.querySelector('.rounded-lg.border')).toBeInTheDocument();
+      expect(container.querySelector('.rounded-card.border')).toBeInTheDocument();
     });
   });
 
   describe('CardSkeleton', () => {
     it('should render with default count', () => {
       const { container } = render(<CardSkeleton />);
-      const cards = container.querySelectorAll('.bg-white.rounded-lg');
+      const cards = container.querySelectorAll('.bg-surface.rounded-card');
       
       expect(cards).toHaveLength(1);
     });
 
     it('should render with custom count', () => {
       const { container } = render(<CardSkeleton count={4} />);
-      const cards = container.querySelectorAll('.bg-white.rounded-lg');
+      const cards = container.querySelectorAll('.bg-surface.rounded-card');
       
       expect(cards).toHaveLength(4);
     });
@@ -141,7 +141,7 @@ describe('Skeleton', () => {
     it('should have card wrapper', () => {
       const { container } = render(<ChartSkeleton />);
       
-      expect(container.querySelector('.bg-white.rounded-lg')).toBeInTheDocument();
+      expect(container.querySelector('.bg-surface.rounded-card')).toBeInTheDocument();
     });
   });
 });

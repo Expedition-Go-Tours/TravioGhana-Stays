@@ -7,11 +7,19 @@
  *      regardless of its dates.
  *   2. otherwise the window decides `scheduled` / `expired` / `active`.
  */
+import { STATUS_TONES, TONE_CLASSES } from "@/lib/statusTones";
+/** Display config per offer status, from the shared status map (`lib/statusTones`). */
+function offerStatusConfig(status: "active" | "scheduled" | "expired" | "inactive") {
+  const { tone, label } = STATUS_TONES.offer[status];
+  const classes = TONE_CLASSES[tone];
+  return { label, tone, dot: classes.dot, bg: classes.soft, text: classes.text, border: classes.border };
+}
+
 export const OFFER_STATUS_CONFIG = {
-  active: { label: "Active", dot: "bg-emerald-500", bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
-  scheduled: { label: "Scheduled", dot: "bg-blue-500", bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
-  expired: { label: "Expired", dot: "bg-slate-400", bg: "bg-slate-50", text: "text-slate-500", border: "border-slate-200" },
-  inactive: { label: "Inactive", dot: "bg-gray-400", bg: "bg-gray-50", text: "text-gray-500", border: "border-gray-200" },
+  active: offerStatusConfig("active"),
+  scheduled: offerStatusConfig("scheduled"),
+  expired: offerStatusConfig("expired"),
+  inactive: offerStatusConfig("inactive"),
 };
 
 export const OFFER_TYPE_LABELS = {

@@ -37,8 +37,8 @@ describe("Step14Rates — rate plans", () => {
         .length,
     ).toBeGreaterThan(0);
     expect(screen.getByText("Price per group size")).toBeTruthy();
-    expect(screen.getAllByText("GHS 29")).toHaveLength(1);
-    expect(screen.getByText("GHS 26.1")).toBeTruthy();
+    expect(screen.getAllByText("$29.00")).toHaveLength(1);
+    expect(screen.getByText("$26.10")).toBeTruthy();
 
     expect(screen.getByText("Child prices for families")).toBeTruthy();
     expect(screen.getByText("Children stay for free (up to 17 years old)")).toBeTruthy();

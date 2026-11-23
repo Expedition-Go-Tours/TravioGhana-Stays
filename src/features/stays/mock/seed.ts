@@ -9,6 +9,68 @@
  * INACTIVE → Paused). The mock keeps the display strings the prototype used.
  */
 import { defaultPlanForRoom } from "../utils/ratePlans";
+import type {
+  AvailabilityOverride,
+  Booking,
+  Claim,
+  Conversation,
+  Dispute,
+  Notification,
+  Offer,
+  PayoutCycle,
+  PayoutMethod,
+  PayoutRequest,
+  Property,
+  RatePlan,
+  Review,
+  RoomType,
+  Verification,
+} from "@/types/stays";
+
+/**
+ * The whole mock database. Typed against the domain contract so
+ * `npm run typecheck` fails when the dataset drifts from what pages expect.
+ */
+export type StaysMockDb = {
+  properties: Property[];
+  bookings: Booking[];
+  conversations: Conversation[];
+  reviews: Review[];
+  offers: Offer[];
+  account: {
+    user: Record<string, unknown>;
+    business: Record<string, unknown>;
+    notificationPreferences: Record<string, Record<string, boolean>>;
+    notificationRecipients: {
+      id: string;
+      email: string;
+      name: string;
+      status: string;
+      preferences: Record<string, boolean>;
+    }[];
+    taxInfo: Record<string, string>;
+  };
+  team: {
+    id: string;
+    email: string;
+    name: string;
+    roles: string[];
+    status: string;
+    joinedAt?: string;
+    invitedAt?: string;
+  }[];
+  overrides: Record<string, AvailabilityOverride>;
+  payoutMethod: string;
+  notifications: Notification[];
+  verification: Verification;
+  finance: {
+    payoutSettings: { cycle: PayoutCycle; autoRunsEnabled: boolean; hasVerifiedPayoutMethod: boolean; pendingCycle?: PayoutCycle | null };
+    payoutMethods: PayoutMethod[];
+    payoutRequests: PayoutRequest[];
+    disputes: Dispute[];
+    claims: Claim[];
+  };
+};
 
 /**
  * ISO instant `days` from now — offers are seeded relative to today so their
@@ -37,9 +99,9 @@ function dayOffsetDate(days) {
 }
 
 /** The prototype's default rate plan for a room (`.defaultPlan`). */
-export const defaultRatePlan = defaultPlanForRoom;
+export const defaultRatePlan: (room: RoomType) => RatePlan = defaultPlanForRoom;
 
-const akwaabaRoom = {
+const akwaabaRoom: RoomType = {
   id: "r1",
   kind: "Deluxe Room",
   name: "Deluxe King Room",
@@ -56,7 +118,7 @@ const akwaabaRoom = {
   meal: "Breakfast included",
 };
 
-export const seedStays = {
+export const seedStays: StaysMockDb = {
   properties: [
     {
       id: "p1",
@@ -119,7 +181,7 @@ export const seedStays = {
       sizeUnit: "square metres",
       bookingPreference: "instant",
       pricePerNight: "29.00",
-      currency: "GHS",
+      currency: "USD",
       promotion: true,
       startMode: "asap",
       calendarWindow: "365 days",
@@ -281,7 +343,7 @@ export const seedStays = {
           conversationId: "conv-1",
           senderId: "stays-supplier",
           sender: { id: "stays-supplier", name: "Akwaaba Coast Hotel" },
-          content: "Yes — airport pickup can be arranged for GHS 150.",
+          content: "Yes — airport pickup can be arranged for $150.",
           attachmentUrl: null,
           attachmentType: null,
           createdAt: dayTimeISO(-1, 18, 5),
@@ -591,7 +653,7 @@ export const seedStays = {
       id: "notif-3",
       type: "PAYOUT_PROCESSED",
       title: "Payout processed",
-      message: "GHS 5,200.00 is on its way to your Ecobank account.",
+      message: "$5,200.00 is on its way to your Ecobank account.",
       data: { payoutId: "payout-1" },
       read: false,
       createdAt: dayTimeISO(-1, 16, 20),

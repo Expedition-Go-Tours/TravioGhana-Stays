@@ -1,152 +1,114 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import api from "@/lib/axios";
 import { useAuthStore } from "@/stores/authStore";
 import { mockSessionEnabled } from "@/lib/mockSession";
-import { TeamRoleContext } from "./teamRoleContext";
+import { permissionMatches, TeamRoleContext, type TeamRoleContextValue } from "./teamRoleContext";
 
-export function TeamRoleProvider({ children }: any) {
-  const [teamRole, setTeamRole] = useState(null);
-  const [teamRoles, setTeamRoles] = useState([]);
-  const [permissions, setPermissions] = useState([]);
-  const [isOwner, setIsOwner] = useState(false);
-  // Storefronts the BUSINESS is on (['GHANA','EXPEDITION']), from /my-role.
-  // Never a member's own roles — those are ['customer'] and carry no brand.
-  const [storefronts, setStorefronts] = useState([]);
+type RoleState = {
+  teamRole: string | null;
+  teamRoles: string[];
+  permissions: string[];
+  isOwner: boolean;
+  storefronts: string[];
+};
+
+const EMPTY_ROLE: RoleState = {
+  teamRole: null,
+  teamRoles: [],
+  permissions: [],
+  isOwner: false,
+  storefronts: [],
+};
+
+/** Mock mode has no backend to ask: the seeded session is the business owner. */
+const MOCK_OWNER_ROLE: RoleState = {
+  teamRole: "admin",
+  teamRoles: ["admin"],
+  permissions: ["*"],
+  isOwner: true,
+  storefronts: ["GHANA"],
+};
+
+type MyRoleResponse = {
+  role?: string | null;
+  roles?: string[];
+  permissions?: string[];
+  isOwner?: boolean;
+  storefronts?: string[];
+};
+
+async function fetchMyRole(): Promise<RoleState> {
+  try {
+    const response = await api.get("/suppliers/settings/team/my-role", { skipGlobalErrorHandler: true });
+    const data: MyRoleResponse = response.data?.data || {};
+    return {
+      teamRole: data.role || null,
+      teamRoles: data.roles || (data.role ? [data.role] : []),
+      permissions: data.permissions || [],
+      isOwner: Boolean(data.isOwner),
+      storefronts: data.storefronts || [],
+    };
+  } catch {
+    return EMPTY_ROLE;
+  }
+}
+
+export function TeamRoleProvider({ children }: { children: ReactNode }) {
+  const [role, setRole] = useState<RoleState>(EMPTY_ROLE);
   const [loading, setLoading] = useState(true);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
-  const fetchAndSet = useCallback(async () => {
-    try {
-      const response = await api.get("/suppliers/settings/team/my-role", {
-        skipGlobalErrorHandler: true,
-      });
-      const data = response.data?.data;
-      setTeamRole(data?.role || null);
-      setTeamRoles(data?.roles || (data?.role ? [data.role] : []));
-      setPermissions(data?.permissions || []);
-      setIsOwner(data?.isOwner || false);
-      setStorefronts(data?.storefronts || []);
-    } catch {
-      setTeamRole(null);
-      setTeamRoles([]);
-      setPermissions([]);
-      setIsOwner(false);
-      setStorefronts([]);
-    }
-  }, []);
-
   const refetch = useCallback(async () => {
     setLoading(true);
-    await fetchAndSet();
+    setRole(mockSessionEnabled ? MOCK_OWNER_ROLE : await fetchMyRole());
     setLoading(false);
-  }, [fetchAndSet]);
+  }, []);
 
   useEffect(() => {
-    // Mock mode has no backend to ask: the seeded session is the business owner,
-    // so every page opens. See lib/mockSession. Deferred like the fetch path so
-    // the effect body stays free of synchronous setState.
-    if (mockSessionEnabled) {
-      let mockCancelled = false;
-      Promise.resolve().then(() => {
-        if (mockCancelled) return;
-        setTeamRole("admin");
-        setTeamRoles(["admin"]);
-        setPermissions(["*"]);
-        setIsOwner(true);
-        setStorefronts(["GHANA"]);
-        setLoading(false);
-      });
-      return () => { mockCancelled = true; };
-    }
-
-    if (!isAuthenticated) {
-      let cancelled = false;
-      // Deferred so the resets never run synchronously inside the effect
-      Promise.resolve().then(() => {
-        if (cancelled) return;
-        setTeamRole(null);
-        setTeamRoles([]);
-        setPermissions([]);
-        setIsOwner(false);
-        setStorefronts([]);
-        setLoading(false);
-      });
-      return () => { cancelled = true; };
-    }
-
     let cancelled = false;
-    // Deferred: keeps the synchronous effect body free of state updates
-    Promise.resolve().then(() => {
+    // Deferred so the synchronous effect body stays free of state updates.
+    Promise.resolve().then(async () => {
       if (cancelled) return;
+      if (mockSessionEnabled) {
+        setRole(MOCK_OWNER_ROLE);
+        setLoading(false);
+        return;
+      }
+      if (!isAuthenticated) {
+        setRole(EMPTY_ROLE);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
-
-      const fetchTeamRole = async () => {
-        try {
-          const response = await api.get("/suppliers/settings/team/my-role", {
-            skipGlobalErrorHandler: true,
-          });
-          if (cancelled) return;
-          const data = response.data?.data;
-          setTeamRole(data?.role || null);
-          setTeamRoles(data?.roles || (data?.role ? [data.role] : []));
-          setPermissions(data?.permissions || []);
-          setIsOwner(data?.isOwner || false);
-          setStorefronts(data?.storefronts || []);
-        } catch {
-          if (cancelled) return;
-          setTeamRole(null);
-          setTeamRoles([]);
-          setPermissions([]);
-          setIsOwner(false);
-          setStorefronts([]);
-        } finally {
-          if (!cancelled) setLoading(false);
-        }
-      };
-
-      fetchTeamRole();
+      const next = await fetchMyRole();
+      if (cancelled) return;
+      setRole(next);
+      setLoading(false);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthenticated]);
 
-  const hasPermission = (permission) => {
-    if (isOwner) return true;
-    if (permissions.includes("*")) return true;
-    if (permissions.includes(permission)) return true;
-    const prefix = permission.split(".")[0];
-    return permissions.some((p) => p.endsWith("*") && p.startsWith(prefix));
-  };
+  const value = useMemo<TeamRoleContextValue>(() => {
+    // Permission-based, never role-name based: an ADMIN-role member who is not
+    // the owner is treated exactly like the owner, and each key is the one the
+    // API enforces on the matching route.
+    const hasPermission = (permission: string) =>
+      role.isOwner || permissionMatches(role.permissions, permission);
+    return {
+      ...role,
+      loading,
+      refetch,
+      hasPermission,
+      canManageTeam: () => hasPermission("settings.manage"),
+      canManageTours: () => hasPermission("tours.view"),
+      canManageFinance: () => hasPermission("payouts.view"),
+      canManageChat: () => hasPermission("chat.view"),
+      canManageAnalytics: () => hasPermission("analytics.view"),
+      canManageBusinessProfile: () => hasPermission("settings.business"),
+    };
+  }, [role, loading, refetch]);
 
-  // Permission-based, never role-name based: an ADMIN-role member who is not the
-  // account owner must be treated exactly like the owner, and the key used here
-  // is the same one the API enforces on the matching route.
-  const canManageTeam = () => hasPermission("settings.manage");
-  const canManageTours = () => hasPermission("tours.view");
-  const canManageFinance = () => hasPermission("payouts.view");
-  const canManageChat = () => hasPermission("chat.view");
-  const canManageAnalytics = () => hasPermission("analytics.view");
-  const canManageBusinessProfile = () => hasPermission("settings.business");
-
-  return (
-    <TeamRoleContext.Provider
-      value={{
-        teamRole,
-        teamRoles,
-        permissions,
-        isOwner,
-        storefronts,
-        loading,
-        refetch,
-        hasPermission,
-        canManageTeam,
-        canManageTours,
-        canManageFinance,
-        canManageChat,
-        canManageAnalytics,
-        canManageBusinessProfile,
-      }}
-    >
-      {children}
-    </TeamRoleContext.Provider>
-  );
+  return <TeamRoleContext.Provider value={value}>{children}</TeamRoleContext.Provider>;
 }

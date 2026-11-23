@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate, type RouteObject } from "react-router-dom";
 import AppShell from "@/components/layout/AppShell";
 import ProtectedRoute from "@/components/shared/ProtectedRoute";
 import RequirePageAccess from "@/components/shared/RequirePageAccess";
@@ -43,6 +43,26 @@ import NotFoundPage from "@/pages/errors/NotFoundPage";
 import ServerErrorPage from "@/pages/errors/ServerErrorPage";
 import ForbiddenPage from "@/pages/errors/ForbiddenPage";
 import NetworkErrorPage from "@/pages/errors/NetworkErrorPage";
+
+/**
+ * Dev-only tools. `import.meta.env.DEV` is replaced at build time, so in a
+ * production build this is an empty array and the lazy chunks are never
+ * emitted. Not in the nav, search or PAGE_ACCESS lists.
+ */
+const DEV_ROUTES: RouteObject[] = import.meta.env.DEV
+  ? [
+      {
+        path: "stays/dev/api-status",
+        lazy: async () => ({ Component: (await import("@/features/stays/dev/ApiStatusPage")).default }),
+        HydrateFallback: () => null,
+      },
+      {
+        path: "stays/dev/ui",
+        lazy: async () => ({ Component: (await import("@/features/stays/dev/UiGalleryPage")).default }),
+        HydrateFallback: () => null,
+      },
+    ]
+  : [];
 
 export const router = createBrowserRouter([
   {
@@ -111,6 +131,7 @@ export const router = createBrowserRouter([
                   { path: "stays/notifications", element: <StaysNotificationsPage /> },
                   { path: "stays/verification", element: <StaysVerificationPage /> },
                   { path: "stays/settings", element: <StaysSettingsPage /> },
+                  ...DEV_ROUTES,
                 ],
               },
               // The 404 owns its own full-screen centred layout.

@@ -32,6 +32,7 @@ import { roomPeople } from "../utils/rooms";
 import { planMetaChips } from "../utils/ratePlans";
 import { statusTone } from "../utils/status";
 import { staysBuilderStepPath, staysCategoryPath } from "../config/staysSteps";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 /**
  * Full read-only property preview.
@@ -462,7 +463,7 @@ export default function PropertyDetailsView({
   const child = settings.child || {};
   const nonRefundable = settings.nonRefundable || {};
   const weekly = settings.weekly || {};
-  const currency = property.currency || "GHS";
+  const currency = property.currency || DEFAULT_CURRENCY;
   const nightlyPrice = Number(property.pricePerNight) || Number(rooms[0]?.price) || 0;
   // Match the defaults the builder's "Rate plans" step displays until the
   // supplier edits them.

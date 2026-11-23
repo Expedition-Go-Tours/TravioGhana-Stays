@@ -8,6 +8,7 @@ import { StaysField, StaysInput, StaysSelect } from "./StaysForm";
 import { formatMoney } from "../utils/money";
 import { defaultPlanForRoom } from "../utils/ratePlans";
 import { roomPeople } from "../utils/rooms";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 /**
  * Room types / bookable units.
@@ -65,7 +66,7 @@ function formFromRoom(room) {
 export default function RoomTypesSection({
   rooms = [],
   ratePlans = [],
-  currency = "GHS",
+  currency = DEFAULT_CURRENCY,
   suggestedName = "Standard Room",
   defaultGuests = 2,
   defaultPrice = 29,

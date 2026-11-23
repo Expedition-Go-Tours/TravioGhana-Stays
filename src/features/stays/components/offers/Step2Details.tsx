@@ -22,6 +22,7 @@ import {
 } from "../../utils/offerStatus";
 import DatePicker from "@/components/forms/DatePicker";
 import { cn } from "@/lib/utils";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 const OFFER_TYPES = [
   { value: "LIMITED_TIME", label: "Limited Time", desc: "Standard discount for a specific period", icon: Clock },
@@ -426,7 +427,7 @@ export default function Step2Details() {
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1.5">
-              Min. Spend Amount (GHS)
+              Min. Spend Amount ({DEFAULT_CURRENCY})
             </label>
             <input
               type="number"

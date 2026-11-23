@@ -25,7 +25,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import StaysSurface from "../components/StaysSurface";
 import StaysPageHeader from "../components/StaysPageHeader";
 import StaysCard from "../components/StaysCard";
 import StaysSeg from "../components/StaysSeg";
@@ -209,7 +208,7 @@ export default function StaysAvailabilityPage() {
   const openCell = (next) => setCell({ ...next, openKey: Date.now() });
 
   return (
-    <StaysSurface>
+    <div>
       <StaysPageHeader
         title="Availability"
         subtitle={
@@ -429,6 +428,7 @@ export default function StaysAvailabilityPage() {
         date={cell?.date}
         override={cell ? overrides[`${cell.room.id}|${cell.date}`] : undefined}
         todayIso={today}
+        currency={data?.currency}
         pending={pending}
         onClose={() => setCell(null)}
         onApply={(values, message) =>
@@ -439,6 +439,6 @@ export default function StaysAvailabilityPage() {
         }
         onClear={() => clearMutation.mutate({ roomId: cell.room.id, date: cell.date })}
       />
-    </StaysSurface>
+    </div>
   );
 }

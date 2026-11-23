@@ -25,7 +25,6 @@ import {
 import { sendStaysMessage } from "../customersApi";
 import { useTeamRole } from "@/hooks/useTeamRole";
 import { PAGE_ACCESS } from "@/config/pageAccess";
-import { useChatFloatingStore } from "@/stores/chatFloatingStore";
 
 function groupByDate(notifications) {
   const groups = {};
@@ -85,8 +84,9 @@ function ReplyBar({ notification }: any) {
     const convType = notification.data?.conversationType;
     if (convType === "SUPPLIER_CUSTOMER" && convId) {
       navigate(`/stays/customers?conversation=${convId}`);
-    } else if (convId) {
-      useChatFloatingStore.getState().open(convId);
+    } else {
+      // Admin / support threads have no in-app view here.
+      navigate(notification.action || "/stays/notifications");
     }
   };
 

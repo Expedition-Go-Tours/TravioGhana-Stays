@@ -1,6 +1,3 @@
-// @ts-nocheck
-// Migration marker: ported from JavaScript; props/data shapes are not annotated yet.
-// Remove this directive once the file is typed — `npm run typecheck` then enforces it.
 /**
  * Stays workspace API.
  *
@@ -17,92 +14,121 @@
  *
  * The live calls intentionally use `skipGlobalErrorHandler` — pages surface
  * their own error states with retry, the same pattern as the products list.
+ *
+ * Return types come from `types/stays.ts`. The live responses are not
+ * validated at runtime here; the dev API status page checks them against
+ * `types/guards.ts`.
  */
 import api from "@/lib/axios";
 import { config } from "@/config";
 import { staysMock } from "./mock/store";
+import type {
+  AnalyticsSummary,
+  Availability,
+  AvailabilityOverride,
+  Booking,
+  BookingListItem,
+  BookingStatus,
+  CancellationRecord,
+  CancellationSummary,
+  DashboardSummary,
+  MonthlyRevenue,
+  Offer,
+  OfferWithStatus,
+  Pagination,
+  Property,
+  PropertyAnalytics,
+  PropertyListItem,
+  RatePlan,
+  Review,
+} from "@/types/stays";
 
-export const staysUsesMockData = config.stays.dataSource !== "api";
+// Exact match only: config/dataSource.ts guarantees "mock" | "api".
+export const staysUsesMockData = config.stays.dataSource === "mock";
 
 const BASE = "/stays/supplier";
 
+type Params = Record<string, unknown>;
+
 /* ── Query keys ──────────────────────────────────────────────────────────── */
 export const STAYS_KEYS = {
-  dashboard: ["stays", "dashboard"],
-  properties: (filters = {}) => ["stays", "properties", filters],
-  property: (id) => ["stays", "property", id],
-  bookings: (filters = {}) => ["stays", "bookings", filters],
-  availability: (propertyId, from, to) => ["stays", "availability", propertyId, from, to],
-  offers: (filter = "All") => ["stays", "offers", filter],
-  reviews: (filter = "All") => ["stays", "reviews", filter],
-  analytics: (period) => ["stays", "analytics", period],
-  cancellation: (days, propertyId) => ["stays", "cancellation", days, propertyId || "all"],
-  cancellationRecords: (filters = {}) => ["stays", "cancellation", "records", filters],
+  dashboard: ["stays", "dashboard"] as const,
+  properties: (filters: Params = {}) => ["stays", "properties", filters] as const,
+  property: (id: string | null | undefined) => ["stays", "property", id] as const,
+  bookings: (filters: Params = {}) => ["stays", "bookings", filters] as const,
+  availability: (propertyId: string | null | undefined, from: string, to: string) =>
+    ["stays", "availability", propertyId, from, to] as const,
+  offers: (filter = "All") => ["stays", "offers", filter] as const,
+  reviews: (filter = "All") => ["stays", "reviews", filter] as const,
+  analytics: (period: unknown) => ["stays", "analytics", period] as const,
+  cancellation: (days: number, propertyId?: string | null) =>
+    ["stays", "cancellation", days, propertyId || "all"] as const,
+  cancellationRecords: (filters: Params = {}) => ["stays", "cancellation", "records", filters] as const,
 };
 
 const requestConfig = { skipGlobalErrorHandler: true };
 
 /* ── Dashboard ───────────────────────────────────────────────────────────── */
-export async function fetchStaysDashboard() {
+export async function fetchStaysDashboard(): Promise<DashboardSummary> {
   if (staysUsesMockData) return staysMock.getDashboard();
   const res = await api.get(`${BASE}/dashboard`, requestConfig);
   return res.data?.data;
 }
 
 /* ── Properties ──────────────────────────────────────────────────────────── */
-export async function listProperties(params = {}) {
+export async function listProperties(params: { status?: string; query?: string } = {}): Promise<PropertyListItem[]> {
   if (staysUsesMockData) return staysMock.listProperties(params);
   const res = await api.get(`${BASE}/properties`, { ...requestConfig, params });
   return res.data?.data?.properties || [];
 }
 
-export async function getProperty(id) {
+export async function getProperty(id: string): Promise<Property> {
   if (staysUsesMockData) return staysMock.getProperty(id);
   const res = await api.get(`${BASE}/properties/${id}`, requestConfig);
   return res.data?.data?.property;
 }
 
-export async function createProperty(payload) {
+export async function createProperty(payload: Partial<Property>): Promise<Property> {
   if (staysUsesMockData) return staysMock.createProperty(payload);
   const res = await api.post(`${BASE}/properties`, payload, requestConfig);
   return res.data?.data?.property;
 }
 
-export async function updateProperty(id, patch) {
+export async function updateProperty(id: string, patch: Partial<Property>): Promise<Property> {
   if (staysUsesMockData) return staysMock.updateProperty(id, patch);
   const res = await api.patch(`${BASE}/properties/${id}`, patch, requestConfig);
   return res.data?.data?.property;
 }
 
-export async function submitProperty(id) {
+export async function submitProperty(id: string): Promise<Property> {
   if (staysUsesMockData) return staysMock.submitProperty(id);
   const res = await api.post(`${BASE}/properties/${id}/submit-for-review`, {}, requestConfig);
   return res.data?.data?.property;
 }
 
-export async function deleteProperty(id) {
+export async function deleteProperty(id: string): Promise<unknown> {
   if (staysUsesMockData) return staysMock.deleteProperty(id);
   const res = await api.delete(`${BASE}/properties/${id}`, requestConfig);
   return res.data?.data;
 }
 
-function dataUrlToBlob(dataUrl) {
-  const [meta, base64] = String(dataUrl).split(',');
-  const mime = /data:([^;]+)/.exec(meta)?.[1] || 'image/jpeg';
-  const binary = atob(base64 || '');
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [meta, base64] = String(dataUrl).split(",");
+  const mime = /data:([^;]+)/.exec(meta)?.[1] || "image/jpeg";
+  const binary = atob(base64 || "");
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
   return new Blob([bytes], { type: mime });
 }
 
-export async function addPropertyPhotos(id, dataUrls) {
+export async function addPropertyPhotos(id: string, dataUrls: string[]): Promise<string[]> {
   if (staysUsesMockData) return staysMock.addPhotos(id, dataUrls);
 
   // Live: the builder already holds data URLs (it reads files in the browser).
   // Convert them back to Blobs and send multipart — a 5-photo batch can exceed
   // the backend's JSON body limit, and multipart streams straight to Cloudinary.
-  const allDataUrls = Array.isArray(dataUrls)
-    && dataUrls.every((value) => typeof value === 'string' && value.startsWith('data:image/'));
+  const allDataUrls =
+    Array.isArray(dataUrls) && dataUrls.every((value) => typeof value === "string" && value.startsWith("data:image/"));
 
   if (!allDataUrls) {
     const res = await api.post(`${BASE}/properties/${id}/photos`, { photos: dataUrls }, requestConfig);
@@ -112,8 +138,8 @@ export async function addPropertyPhotos(id, dataUrls) {
   const form = new FormData();
   dataUrls.forEach((dataUrl, index) => {
     const blob = dataUrlToBlob(dataUrl);
-    const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
-    form.append('photos', blob, `property-${index}.${ext}`);
+    const ext = (blob.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
+    form.append("photos", blob, `property-${index}.${ext}`);
   });
 
   // Let the browser set the multipart boundary; do not set Content-Type here.
@@ -121,14 +147,14 @@ export async function addPropertyPhotos(id, dataUrls) {
   return res.data?.data?.photos || [];
 }
 
-export async function removePropertyPhoto(id, index) {
+export async function removePropertyPhoto(id: string, index: number): Promise<string[]> {
   if (staysUsesMockData) return staysMock.removePhoto(id, index);
   const res = await api.delete(`${BASE}/properties/${id}/photos/${index}`, requestConfig);
   return res.data?.data?.photos || [];
 }
 
 /* ── Rate plans ─────────────────────────────────────────────────────────── */
-export async function saveRatePlan(propertyId, plan) {
+export async function saveRatePlan(propertyId: string, plan: Partial<RatePlan>): Promise<Property> {
   if (staysUsesMockData) return staysMock.saveRatePlan(propertyId, plan);
   const res = plan.id
     ? await api.patch(`${BASE}/properties/${propertyId}/rate-plans/${plan.id}`, plan, requestConfig)
@@ -136,14 +162,17 @@ export async function saveRatePlan(propertyId, plan) {
   return res.data?.data?.property;
 }
 
-export async function deleteRatePlan(propertyId, planId) {
+export async function deleteRatePlan(propertyId: string, planId: string): Promise<Property> {
   if (staysUsesMockData) return staysMock.deleteRatePlan(propertyId, planId);
   const res = await api.delete(`${BASE}/properties/${propertyId}/rate-plans/${planId}`, requestConfig);
   return res.data?.data?.property;
 }
 
 /* ── Availability ────────────────────────────────────────────────────────── */
-export async function getAvailability(propertyId, { from, to } = {}) {
+export async function getAvailability(
+  propertyId: string,
+  { from, to }: { from?: string; to?: string } = {},
+): Promise<Availability> {
   if (staysUsesMockData) return staysMock.getAvailability(propertyId, { from, to });
   const res = await api.get(`${BASE}/properties/${propertyId}/availability`, {
     ...requestConfig,
@@ -152,18 +181,20 @@ export async function getAvailability(propertyId, { from, to } = {}) {
   return res.data?.data;
 }
 
-export async function setAvailabilityCell(propertyId, { roomId, date, values }) {
+export async function setAvailabilityCell(
+  propertyId: string,
+  { roomId, date, values }: { roomId: string; date: string; values: AvailabilityOverride },
+): Promise<unknown> {
   if (staysUsesMockData) return staysMock.setAvailabilityCell(propertyId, { roomId, date, values });
-  const res = await api.put(
-    `${BASE}/properties/${propertyId}/availability`,
-    { roomId, date, ...values },
-    requestConfig,
-  );
+  const res = await api.put(`${BASE}/properties/${propertyId}/availability`, { roomId, date, ...values }, requestConfig);
   return res.data?.data;
 }
 
 /** Removes the room/date override so the room's defaults apply again. */
-export async function clearAvailabilityCell(propertyId, { roomId, date }) {
+export async function clearAvailabilityCell(
+  propertyId: string,
+  { roomId, date }: { roomId: string; date: string },
+): Promise<unknown> {
   if (staysUsesMockData) return staysMock.clearAvailabilityCell(propertyId, { roomId, date });
   const res = await api.delete(`${BASE}/properties/${propertyId}/availability`, {
     ...requestConfig,
@@ -173,38 +204,52 @@ export async function clearAvailabilityCell(propertyId, { roomId, date }) {
 }
 
 /* ── Bookings ────────────────────────────────────────────────────────────── */
-export async function listStaysBookings(params = {}) {
+export async function listStaysBookings(params: { status?: string } = {}): Promise<BookingListItem[]> {
   if (staysUsesMockData) return staysMock.listBookings(params);
   const res = await api.get(`${BASE}/bookings`, { ...requestConfig, params });
   return res.data?.data?.bookings || [];
 }
 
-export async function updateBookingStatus(id, status) {
+export async function updateBookingStatus(id: string, status: BookingStatus): Promise<Booking> {
   if (staysUsesMockData) return staysMock.updateBookingStatus(id, status);
   const res = await api.patch(`${BASE}/bookings/${id}/status`, { status }, requestConfig);
   return res.data?.data?.booking;
 }
 
-export async function createStayBooking(payload) {
+/** A supplier-recorded walk-in or phone reservation. */
+export type CreateStayBookingPayload = {
+  propertyId: string;
+  roomId: string;
+  guestName: string;
+  guestEmail?: string;
+  guestPhone?: string;
+  checkIn: string;
+  checkOut: string;
+  guests: number;
+  specialRequests?: string;
+  amount?: number;
+};
+
+export async function createStayBooking(payload: CreateStayBookingPayload): Promise<Booking> {
   if (staysUsesMockData) return staysMock.createBooking(payload);
   const res = await api.post(`${BASE}/bookings`, payload, requestConfig);
   return res.data?.data?.booking;
 }
 
 /* ── Offers ──────────────────────────────────────────────────────────────── */
-export async function listOffers(params = {}) {
+export async function listOffers(params: { filter?: string } = {}): Promise<OfferWithStatus[]> {
   if (staysUsesMockData) return staysMock.listOffers(params);
   const res = await api.get(`${BASE}/offers`, { ...requestConfig, params });
   return res.data?.data?.offers || [];
 }
 
-export async function getOffer(id) {
+export async function getOffer(id: string): Promise<OfferWithStatus | null> {
   if (staysUsesMockData) return staysMock.getOffer(id);
   const res = await api.get(`${BASE}/offers/${id}`, requestConfig);
   return res.data?.data?.offer;
 }
 
-export async function saveOffer(offer) {
+export async function saveOffer(offer: Partial<Offer>): Promise<OfferWithStatus[]> {
   if (staysUsesMockData) return staysMock.saveOffer(offer);
   const res = offer.id
     ? await api.patch(`${BASE}/offers/${offer.id}`, offer, requestConfig)
@@ -212,39 +257,43 @@ export async function saveOffer(offer) {
   return res.data?.data?.offers || [];
 }
 
-export async function toggleOffer(id) {
+export async function toggleOffer(id: string): Promise<OfferWithStatus> {
   if (staysUsesMockData) return staysMock.toggleOffer(id);
   const res = await api.post(`${BASE}/offers/${id}/toggle`, {}, requestConfig);
   return res.data?.data?.offer;
 }
 
-export async function deleteOffer(id) {
+export async function deleteOffer(id: string): Promise<unknown> {
   if (staysUsesMockData) return staysMock.deleteOffer(id);
   const res = await api.delete(`${BASE}/offers/${id}`, requestConfig);
   return res.data?.data;
 }
 
 /* ── Reviews ─────────────────────────────────────────────────────────────── */
-export async function listStaysReviews(params = {}) {
+export async function listStaysReviews(params: { filter?: string } = {}): Promise<Review[]> {
   if (staysUsesMockData) return staysMock.listReviews(params);
   const res = await api.get(`${BASE}/reviews`, { ...requestConfig, params });
   return res.data?.data?.reviews || [];
 }
 
-export async function replyToStaysReview(id, reply) {
+export async function replyToStaysReview(id: string, reply: string): Promise<Review> {
   if (staysUsesMockData) return staysMock.replyToReview(id, reply);
   const res = await api.post(`${BASE}/reviews/${id}/reply`, { reply }, requestConfig);
   return res.data?.data?.review;
 }
 
 /* ── Reporting ───────────────────────────────────────────────────────────── */
-export async function fetchCancellationSummary(params = {}) {
+export async function fetchCancellationSummary(
+  params: { days?: number; propertyId?: string } = {},
+): Promise<CancellationSummary> {
   if (staysUsesMockData) return staysMock.getCancellationSummary(params);
   const res = await api.get(`${BASE}/cancellation`, { ...requestConfig, params });
   return res.data?.data;
 }
 
-export async function fetchCancellationRecords(params = {}) {
+export async function fetchCancellationRecords(
+  params: Params = {},
+): Promise<{ records: CancellationRecord[]; pagination: Pagination | null }> {
   if (staysUsesMockData) return staysMock.listCancellationRecords(params);
   const res = await api.get(`${BASE}/cancellation/records`, { ...requestConfig, params });
   const payload = res.data?.data || {};
@@ -254,25 +303,25 @@ export async function fetchCancellationRecords(params = {}) {
   };
 }
 
-export async function fetchStaysAnalytics(params = {}) {
+export async function fetchStaysAnalytics(params: Params = {}): Promise<unknown> {
   if (staysUsesMockData) return staysMock.getAnalytics(params);
   const res = await api.get(`${BASE}/analytics`, { ...requestConfig, params });
   return res.data?.data;
 }
 
-export async function fetchStaysAnalyticsSummary() {
+export async function fetchStaysAnalyticsSummary(): Promise<AnalyticsSummary | null> {
   if (staysUsesMockData) return staysMock.getAnalyticsSummary();
   const res = await api.get(`${BASE}/analytics/summary`, requestConfig);
   return res.data?.data || null;
 }
 
-export async function fetchStaysPropertyAnalytics() {
+export async function fetchStaysPropertyAnalytics(): Promise<PropertyAnalytics[]> {
   if (staysUsesMockData) return staysMock.getPropertyAnalytics();
   const res = await api.get(`${BASE}/analytics/properties`, requestConfig);
   return res.data?.data?.properties || [];
 }
 
-export async function fetchStaysMonthlyRevenue(months = 12) {
+export async function fetchStaysMonthlyRevenue(months = 12): Promise<MonthlyRevenue[]> {
   if (staysUsesMockData) return staysMock.getMonthlyRevenue({ months });
   const res = await api.get(`${BASE}/analytics/monthly-revenue`, {
     ...requestConfig,

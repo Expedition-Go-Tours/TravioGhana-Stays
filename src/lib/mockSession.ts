@@ -4,21 +4,21 @@
  * `VITE_STAYS_DATA_SOURCE=mock` swaps the Stays API layer for the in-feature
  * dataset, but that alone is not enough to boot: `ProtectedRoute` still wants a
  * token, and `TeamRoleProvider` still asks the backend for the member's role.
- * With no backend and no Firebase project, the app would sit on `/login`
- * forever.
  *
- * This module is the missing half of the switch. When the Stays data source is
- * `mock` it seeds a supplier session, marks the user as the owner (`*`
- * permissions) and stops `TeamRoleProvider` from calling `/my-role`.
+ * This module is the missing half of the switch. In mock mode it seeds a
+ * supplier session, marks the user as the owner (`*` permissions) and stops
+ * `TeamRoleProvider` from calling `/my-role`.
  *
- * It is inert in production: `config.stays.dataSource` defaults to `api`
- * outside development, so no fake session can leak into a real build.
+ * Mock mode is only ever chosen on an exact `mock` value, and a production
+ * build additionally needs `VITE_ALLOW_MOCK_IN_PROD=true`
+ * (`config/dataSource.ts`), so no fake owner session can leak into a real
+ * deployment through a typo.
  */
 import { config } from "@/config";
 import { useAuthStore } from "@/stores/authStore";
 
 /** True when the app is running against the in-feature dataset. */
-export const mockSessionEnabled = config.stays.dataSource !== "api";
+export const mockSessionEnabled = config.stays.dataSource === "mock";
 
 const MOCK_TOKEN = "mock-session-token";
 
@@ -39,10 +39,11 @@ const MOCK_SUPPLIER_PROFILE = {
 };
 
 /**
- * Seed the session before React mounts. Call once, from `main.tsx`.
+ * Seed the session before React mounts. Call once, from `main.tsx`, after
+ * `assertSafeDataSource()`.
  */
-export function installMockSession() {
-  if (!mockSessionEnabled) return;
+export function installMockSession(enabled: boolean = mockSessionEnabled) {
+  if (!enabled) return;
 
   localStorage.setItem("auth_token", MOCK_TOKEN);
   localStorage.setItem("auth_user", JSON.stringify(MOCK_USER));
@@ -55,4 +56,9 @@ export function installMockSession() {
     hasHydrated: true,
     supplierProfile: MOCK_SUPPLIER_PROFILE,
   });
+}
+
+/** Throws the configuration error, if any, so the app never boots unsafely. */
+export function assertSafeDataSource(configError: string | null = config.stays.configError) {
+  if (configError) throw new Error(configError);
 }

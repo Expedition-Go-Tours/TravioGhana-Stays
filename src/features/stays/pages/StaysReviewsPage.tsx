@@ -5,7 +5,6 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Star } from "@/features/stays/icons";
 import { toast } from "sonner";
-import StaysSurface from "../components/StaysSurface";
 import StaysPageHeader from "../components/StaysPageHeader";
 import StaysCard from "../components/StaysCard";
 import StaysSeg from "../components/StaysSeg";
@@ -67,7 +66,7 @@ export default function StaysReviewsPage() {
   };
 
   return (
-    <StaysSurface>
+    <div>
       <StaysPageHeader
         title="Reviews"
         subtitle="What guests say about your properties — and your replies."
@@ -158,6 +157,6 @@ export default function StaysReviewsPage() {
           </StaysEmptyState>
         </StaysCard>
       )}
-    </StaysSurface>
+    </div>
   );
 }

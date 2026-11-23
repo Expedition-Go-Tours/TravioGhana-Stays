@@ -19,7 +19,7 @@ const delay = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
 const uid = (prefix) => `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 /** Bump when the seed or stored shape changes — old payloads reseed. */
-const STORAGE_VERSION = 6;
+const STORAGE_VERSION = 7;
 export const STAYS_MOCK_STORAGE_KEY = "stays-mock-db-v1";
 
 /**
@@ -97,6 +97,23 @@ function bookingCountFor(propertyId) {
 }
 
 const nonCancelled = () => db.bookings.filter((b) => b.status !== "Cancelled");
+
+/** An error shaped like an Axios HTTP error, so pages read it the same way in both modes. */
+function httpError(status, message) {
+  const error = new Error(message);
+  error.response = { status, data: { message } };
+  return error;
+}
+
+function pendingInviteFor(token) {
+  const team = db.team || [];
+  const exact = team.find((row) => row.id === token);
+  if (exact && exact.status === "REVOKED") throw httpError(410, "Invitation has been revoked");
+  if (exact && exact.status !== "PENDING") throw httpError(410, "Invitation has already been used");
+  const member = exact || team.find((row) => row.status === "PENDING");
+  if (!member) throw httpError(404, "Invitation not found");
+  return member;
+}
 
 /* ── Finance helpers ─────────────────────────────────────────────────────── */
 
@@ -202,6 +219,7 @@ export const staysMock = {
         name: p.name,
         bookings: bookingCountFor(p.id),
         roomTypes: p.rooms.length,
+        photo: p.photos?.[0] ?? null,
         revenue: db.bookings
           .filter((b) => b.propertyId === p.id && b.status !== "Cancelled")
           .reduce((sum, b) => sum + b.amount, 0),
@@ -216,9 +234,9 @@ export const staysMock = {
         liveProperties: db.properties.filter((p) => p.status === "Live").length,
         grossBookingValue: gross,
       },
-      currency: "GHS",
+      currency: "USD",
       mixedCurrencies: false,
-      currencies: [{ currency: "GHS", grossBookingValue: gross, bookings: nonCancelled().length }],
+      currencies: [{ currency: "USD", grossBookingValue: gross, bookings: nonCancelled().length }],
       cancellation: {
         rate: db.bookings.length ? Math.round((cancelled / db.bookings.length) * 1000) / 10 : 0,
         cancelled,
@@ -326,7 +344,7 @@ export const staysMock = {
       sizeUnit: "square metres",
       bookingPreference: "instant",
       pricePerNight: "29.00",
-      currency: "GHS",
+      currency: "USD",
       promotion: true,
       startMode: "asap",
       calendarWindow: "365 days",
@@ -406,7 +424,7 @@ export const staysMock = {
         overrides[`${roomId}|${date}`] = clone(value);
       }
     }
-    return { overrides, currency: "GHS" };
+    return { overrides, currency: "USD" };
   },
 
   async setAvailabilityCell(propertyId, { roomId, date, values }) {
@@ -871,9 +889,50 @@ export const staysMock = {
     return clone(member);
   },
 
-  async resendInvite() {
+  async resendInvite(email) {
     await delay();
+    const member = (db.team || []).find(
+      (row) => row.status === "PENDING" && row.email?.toLowerCase() === String(email || "").toLowerCase(),
+    );
+    if (!member) throw httpError(404, "No pending invitation for that email");
+    member.invitedAt = new Date().toISOString();
+    persist();
     return { emailSent: true };
+  },
+
+  // ── Team invitation (the /team/invite accept / decline flow) ──────────
+  /**
+   * The token is the pending member's id; any other token resolves to the
+   * first pending invitation so the demo link always opens something.
+   */
+  async getInviteDetails(token) {
+    await delay();
+    const member = pendingInviteFor(token);
+    const business = db.account?.business?.businessInfo || {};
+    return {
+      supplierName: business.displayName || business.legalBusinessName || "Travio Ghana Stays (demo)",
+      invitedEmail: member.email,
+      roles: clone(member.roles || []),
+      invitedBy: db.account?.user?.name || "",
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+  },
+
+  async acceptInvite(token) {
+    await delay();
+    const member = pendingInviteFor(token);
+    member.status = "ACTIVE";
+    member.joinedAt = new Date().toISOString();
+    persist();
+    return clone(member);
+  },
+
+  async declineInvite(token) {
+    await delay();
+    const member = pendingInviteFor(token);
+    member.status = "DECLINED";
+    persist();
+    return { ok: true };
   },
 
   async updateTeamMemberRoles(id, roles = []) {
@@ -1015,7 +1074,7 @@ export const staysMock = {
 
     return {
       // Every earnings row is USD; the summary carries the currency so the
-      // finance page never falls back to GHS for these amounts.
+      // finance page always has a currency for these amounts.
       currency: "USD",
       mixedCurrencies: false,
       availableBalance: { amount: sum(eligible), bookingCount: eligible.length, currency: "USD" },
@@ -1294,9 +1353,9 @@ export const staysMock = {
       bookings: { total: valid.length },
       earnings: {
         totalEarnings,
-        currency: "GHS",
+        currency: "USD",
         mixedCurrencies: false,
-        currencies: [{ currency: "GHS", totalEarnings, bookings: valid.length }],
+        currencies: [{ currency: "USD", totalEarnings, bookings: valid.length }],
       },
       reviews: { averageRating, total: reviews.length },
     };
@@ -1317,8 +1376,8 @@ export const staysMock = {
         name: property.name,
         bookings: rows.length,
         revenue,
-        currency: "GHS",
-        revenueByCurrency: { GHS: revenue },
+        currency: "USD",
+        revenueByCurrency: { USD: revenue },
         photo: property.photos?.[0] || "",
       };
     });
@@ -1354,9 +1413,9 @@ export const staysMock = {
       totalBookings: count,
       grossBookingValue: gross,
       averageBookingValue: count ? Math.round(gross / count) : 0,
-      currency: "GHS",
+      currency: "USD",
       mixedCurrencies: false,
-      currencies: [{ currency: "GHS", grossBookingValue: gross, bookings: count }],
+      currencies: [{ currency: "USD", grossBookingValue: gross, bookings: count }],
       liveProperties: db.properties.filter((p) => p.status === "Live").length,
       // Illustrative series — matches the prototype's chart while the real
       // reporting endpoint is built (it is labelled as such in the UI).

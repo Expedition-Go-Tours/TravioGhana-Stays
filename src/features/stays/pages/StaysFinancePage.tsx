@@ -13,7 +13,7 @@ import {
   Calendar, Info, Search, Lock, XCircle, Undo2,
 } from "@/features/stays/icons";
 import { toast } from "sonner";
-import StatusBadge from "@/components/shared/StatusBadge";
+import { Badge, StatusBadge } from "@/components/ui";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { PayoutScheduleSummary } from "../components/finance/StaysPayoutScheduleCard";
 import PayoutMethodFormSheet from "../components/finance/StaysPayoutMethodFormSheet";
@@ -25,6 +25,7 @@ import {
 } from "../financeApi";
 import { getAuthToken } from "@/stores/authStore";
 import { COUNTRIES, PAYOUT_METHOD_TYPES, maskTail } from "../config/payoutMethodForm";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 const TABS = [
   { key: "earnings", label: "Earnings", icon: DollarSign },
@@ -349,9 +350,9 @@ export default function StaysFinancePage() {
     return { available, pending, inReview, paidOut };
   }, [summary]);
 
-  // Stay bookings are denominated in the property currency (usually GHS); the
-  // summary carries it so the stat cards never print a USD sign over GHS.
-  const financeCurrency = summary?.currency || "GHS";
+  // Stay bookings are denominated in the property currency (USD by default); the
+  // summary carries it so the stat cards always show the right currency.
+  const financeCurrency = summary?.currency || DEFAULT_CURRENCY;
 
   const windowInfo = summary?.withdrawalWindow || null;
   const windowOpen = Boolean(windowInfo?.open);
@@ -1150,7 +1151,7 @@ export default function StaysFinancePage() {
                           <td className="py-3 px-4 text-sm text-gray-700">{r.cycleLabel}</td>
                           <td className="py-3 px-4 text-right text-sm text-gray-700 tabular-nums">{r.bookingCount}</td>
                           <td className="py-3 px-4 text-right text-sm font-semibold text-gray-900 tabular-nums">{formatCurrency(r.amount, r.currency)}</td>
-                          <td className="py-3 px-4 text-center"><StatusBadge status={r.status} label={r.status?.replace(/_/g, " ")} size="sm" /></td>
+                          <td className="py-3 px-4 text-center"><StatusBadge domain="payout" status={r.status} /></td>
                           <td className="py-3 px-4 text-sm text-gray-500">{formatDate(r.completedAt || r.createdAt)}</td>
                           <td className="py-3 px-4 text-right">
                             {r.status === "PROCESSING" && (
@@ -1582,73 +1583,28 @@ function DetailRow({ label, value, mono, masked }: any) {
 }
 
 // Status badge for the booking payout lifecycle
-function EarningStatusBadge({ status }: any) {
-  const styles = {
-    "ELIGIBLE": { bg: "bg-emerald-50", text: "text-emerald-700", label: "Eligible" },
-    "PENDING": { bg: "bg-amber-50", text: "text-amber-700", label: "Clearing" },
-    "REQUESTED": { bg: "bg-sky-50", text: "text-sky-700", label: "Requested" },
-    "PAID": { bg: "bg-emerald-50", text: "text-emerald-700", label: "Paid" },
-    "DISPUTED": { bg: "bg-red-50", text: "text-red-700", label: "On hold" },
-    "CANCELLED": { bg: "bg-gray-100", text: "text-gray-500", label: "Cancelled" },
-    "FAILED": { bg: "bg-red-50", text: "text-red-700", label: "Failed" },
-  };
-
-  const style = styles[status] || styles["PENDING"];
-
-  return (
-    <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium", style.bg, style.text)}>
-      {style.label}
-    </span>
-  );
+// Status chips for this page — tones and labels live in lib/statusTones.
+function EarningStatusBadge({ status }: { status: string }) {
+  return <StatusBadge domain="earning" status={status} dot={false} />;
 }
 
-// Badge for the cancellation-fee ledger (25%, netted off the next payout)
-function ChargeStatusBadge({ status }: any) {
-  const styles = {
-    "OPEN": { bg: "bg-amber-50", text: "text-amber-700", label: "Open" },
-    "SETTLED": { bg: "bg-emerald-50", text: "text-emerald-700", label: "Settled" },
-    "WAIVED": { bg: "bg-gray-100", text: "text-gray-500", label: "Waived" },
-  };
-
-  const style = styles[status] || styles["OPEN"];
-
-  return (
-    <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium whitespace-nowrap", style.bg, style.text)}>
-      {style.label}
-    </span>
-  );
+// The cancellation-fee ledger (netted off the next payout).
+function ChargeStatusBadge({ status }: { status: string }) {
+  return <StatusBadge domain="charge" status={status} dot={false} />;
 }
 
-// Badge for supplier refund request lifecycle
-function RefundStatusBadge({ status }: any) {
-  const styles = {
-    "OPEN": { bg: "bg-amber-50", text: "text-amber-700", label: "Open" },
-    "UNDER_REVIEW": { bg: "bg-sky-50", text: "text-sky-700", label: "Under review" },
-    "RESOLVED_CUSTOMER": { bg: "bg-red-50", text: "text-red-700", label: "Refunded" },
-    "RESOLVED_SUPPLIER": { bg: "bg-emerald-50", text: "text-emerald-700", label: "Denied" },
-    "WITHDRAWN": { bg: "bg-gray-100", text: "text-gray-500", label: "Withdrawn" },
-  };
-
-  const style = styles[status] || styles["OPEN"];
-
-  return (
-    <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium whitespace-nowrap", style.bg, style.text)}>
-      {style.label}
-    </span>
-  );
+// Supplier refund request lifecycle.
+function RefundStatusBadge({ status }: { status: string }) {
+  return <StatusBadge domain="refund" status={status} dot={false} />;
 }
 
-function RefundReasonBadge({ reason }: any) {
-  const labels = {
-    OPERATIONAL: "Operational",
-    FORCE_MAJEURE: "Force majeure",
-    CUSTOMER_REQUESTED: "Customer asked",
-    OTHER: "Other",
-  };
+const REFUND_REASON_LABELS: Record<string, string> = {
+  OPERATIONAL: "Operational",
+  FORCE_MAJEURE: "Force majeure",
+  CUSTOMER_REQUESTED: "Customer asked",
+  OTHER: "Other",
+};
 
-  return (
-    <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-600 whitespace-nowrap">
-      {labels[reason] || reason}
-    </span>
-  );
+function RefundReasonBadge({ reason }: { reason: string }) {
+  return <Badge tone="neutral">{REFUND_REASON_LABELS[reason] || reason}</Badge>;
 }

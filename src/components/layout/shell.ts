@@ -1,31 +1,46 @@
 /**
- * Single source of truth for the dashboard's horizontal alignment.
+ * Shell geometry — one source of truth for the header, the sidebar and the
+ * page container.
  *
- * The header logo and every page's content must start at the same left edge,
- * otherwise pages appear to "drift" toward the centre on wide windows. The
- * Header, PageContainer and the full-bleed pages all read these values from
- * here, so the two can never disagree again.
+ * Navigation by screen size:
+ *   phones  (< md, 768px)  no sidebar; the menu button opens a drawer
+ *   tablets (md – lg)      a 72px icon rail
+ *   desktop (≥ lg, 1024px) a 272px sidebar the user can collapse to the rail
  *
- * Rules for pages (enforced by __tests__/pageAlignment.test.jsx):
- *   - never declare your own horizontal gutter or `mx-auto` — PageContainer owns it
- *   - a narrower reading measure is fine, as long as it is left-aligned
- *     (e.g. `max-w-4xl`, never `max-w-4xl mx-auto`)
+ * AppShell sets `--nav-w` to the current sidebar width; the header and main
+ * area offset themselves by it, so the three can never disagree.
  *
- * One documented exception: landing/hero pages that are a single centred card
- * (the stays property-type chooser) centre their content column with `mx-auto`
- * inside PageContainer. The page root still spans the shared gutter, so the
- * header/logo alignment contract is unaffected.
- *
- * SHELL_GUTTER must stay in sync with the fixed Header, which is what the
- * measured alignment in scripts/check-alignment.mjs compares against.
+ * Rules for pages (checked by __tests__/pageAlignment.test.tsx):
+ *   - never declare your own horizontal page gutter — PageContainer owns it;
+ *   - a narrower reading measure is fine, as long as it is left-aligned.
+ * Full-bleed routes (`handle.bleed`) own their layout and import SHELL_GUTTER.
  */
+export const HEADER_HEIGHT = 64;
+export const RAIL_WIDTH = 72;
+export const SIDEBAR_WIDTH = 272;
+
+/** CSS variable classes that size `--nav-w` per breakpoint and collapse state. */
+export const NAV_WIDTH_CLASSES = {
+  expanded: "[--nav-w:0px] md:[--nav-w:72px] lg:[--nav-w:272px]",
+  collapsed: "[--nav-w:0px] md:[--nav-w:72px]",
+} as const;
+
+/** Horizontal page gutter, shared by the header and every page. */
 export const SHELL_GUTTER = "px-4 lg:px-6";
 
-/** One content measure for the whole dashboard, matching the admin apps. */
+/** One content measure for the whole dashboard. */
 export const SHELL_MEASURE = "w-full max-w-[1440px]";
 
-/** Vertical rhythm for a scrolling page (top matches the old page padding). */
-export const SHELL_PADDING_Y = "pt-4 pb-10 md:pt-6";
+/** Vertical rhythm for a scrolling page. */
+export const SHELL_PADDING_Y = "pt-5 pb-12 md:pt-7";
 
-/** Keeps short pages from collapsing against the header. */
-export const SHELL_SURFACE = "min-h-[calc(100vh-64px)]";
+/** Keeps short pages from collapsing against the header (dynamic viewport units). */
+export const SHELL_SURFACE = "min-h-[calc(100dvh-4rem)]";
+
+/** The phone navigation drawer's id (the menu button's aria-controls). */
+export const MOBILE_NAV_ID = "mobile-nav";
+
+/** The header's 44px icon controls (menu, search, notifications). */
+export const HEADER_ICON_BUTTON =
+  "relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-control text-muted transition-colors " +
+  "hover:bg-surface-strong hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";

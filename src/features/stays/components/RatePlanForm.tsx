@@ -11,6 +11,7 @@ import {
 } from "../config/constants";
 import { defaultPlanForRoom, planPrice } from "../utils/ratePlans";
 import { formatMoney } from "../utils/money";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 /**
  * Create/edit a rate plan — the four-section form, conditional fields and
@@ -31,7 +32,7 @@ function PlanSection({ title, children }: any) {
   );
 }
 
-export default function RatePlanForm({ room, plan, onCancel, onSave, onDelete }: any) {
+export default function RatePlanForm({ room, plan, onCancel, onSave, onDelete, currency = DEFAULT_CURRENCY }: any) {
   // Mount-fresh state: the parent remounts per open (`key`), so cancel
   // discards edits without a reset effect. A new plan drops the default
   // factory's synthetic id so the API creates a fresh plan instead of
@@ -127,10 +128,10 @@ export default function RatePlanForm({ room, plan, onCancel, onSave, onDelete }:
         </StaysField>
         {!derived && (
           <>
-            <StaysField label="Weekday nightly price (GHS)">
+            <StaysField label={`Weekday nightly price (${currency})`}>
               <StaysInput type="number" min="0" value={form.price} onChange={setNumber("price")} />
             </StaysField>
-            <StaysField label="Weekend nightly price (GHS)">
+            <StaysField label={`Weekend nightly price (${currency})`}>
               <StaysInput type="number" min="0" value={form.weekend} onChange={setNumber("weekend")} />
             </StaysField>
           </>
@@ -213,13 +214,13 @@ export default function RatePlanForm({ room, plan, onCancel, onSave, onDelete }:
         <StaysField label="Guests included in base rate">
           <StaysInput type="number" min="1" value={form.baseGuests} onChange={setNumber("baseGuests")} />
         </StaysField>
-        <StaysField label="Single guest discount (GHS/night)">
+        <StaysField label={`Single guest discount (${currency}/night)`}>
           <StaysInput type="number" min="0" value={form.singleGuestDiscount} onChange={setNumber("singleGuestDiscount")} />
         </StaysField>
-        <StaysField label="Extra adult (GHS/night)">
+        <StaysField label={`Extra adult (${currency}/night)`}>
           <StaysInput type="number" min="0" value={form.extraAdult} onChange={setNumber("extraAdult")} />
         </StaysField>
-        <StaysField label="Extra child (GHS/night)">
+        <StaysField label={`Extra child (${currency}/night)`}>
           <StaysInput type="number" min="0" value={form.extraChild} onChange={setNumber("extraChild")} />
         </StaysField>
       </PlanSection>

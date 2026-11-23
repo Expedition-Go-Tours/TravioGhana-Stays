@@ -12,6 +12,7 @@ import { formatCurrency } from "@/lib/utils";
 import OptimizedImage from "@/components/shared/OptimizedImage";
 import { getAuthToken } from "@/stores/authStore";
 import { fetchStaysAnalyticsSummary, fetchStaysMonthlyRevenue, fetchStaysPropertyAnalytics } from "../api";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -118,7 +119,7 @@ export default function AnalyticsPage() {
 
   const reviews = dashboardData?.reviews || {};
   const totalRevenue = Number(earnings.totalEarnings) || 0;
-  const earningsCurrency = earnings.currency || "GHS";
+  const earningsCurrency = earnings.currency || DEFAULT_CURRENCY;
   const earningsByCurrency = Array.isArray(earnings.currencies) ? earnings.currencies : [];
   const totalBookings = bookingsData.total || 0;
   const liveProperties = propertiesData.active || 0;

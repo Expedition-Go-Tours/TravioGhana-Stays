@@ -144,6 +144,8 @@ describe('sidebar — Live Site', () => {
     expect(screen.queryByRole('button', { name: /live site/i })).toBeNull();
     // The 64px rail has no room for two buttons, but you must still be able to
     // get out of it.
-    expect(screen.getByTitle('Expand sidebar')).toBeInTheDocument();
+    const expand = screen.getByRole('button', { name: 'Expand sidebar' });
+    expect(expand).toHaveAttribute('aria-expanded', 'false');
+    expect(expand).toHaveAttribute('aria-controls', 'app-sidebar');
   });
 });

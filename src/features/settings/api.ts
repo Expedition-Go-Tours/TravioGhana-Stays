@@ -1,151 +1,41 @@
-// @ts-nocheck
-// Migration marker: ported from JavaScript; props/data shapes are not annotated yet.
-// Remove this directive once the file is typed — `npm run typecheck` then enforces it.
-import api from "@/lib/axios";
-
-export async function fetchCurrentUser() {
-  const response = await api.get("/users/me", { skipGlobalErrorHandler: true });
-  return response.data?.data?.user || null;
-}
-
-export function updateCurrentUser(data) {
-  return api.patch("/users/updateMe", data, { skipGlobalErrorHandler: true });
-}
-
-export async function uploadSupplierLogo(formData) {
-  const response = await api.post("/suppliers/logo", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-    skipGlobalErrorHandler: true,
-  });
-  return response.data?.data || null;
-}
-
-export async function fetchBusinessProfile() {
-  const response = await api.get("/suppliers/settings/business-profile", { skipGlobalErrorHandler: true });
-  return response.data?.data || null;
-}
-
-export async function updateBusinessProfile(data) {
-  const response = await api.patch("/suppliers/settings/business-profile", data, { skipGlobalErrorHandler: true });
-  return response.data?.data || null;
-}
-
-export async function fetchNotificationPreferences() {
-  const response = await api.get("/suppliers/settings/notification-preferences", { skipGlobalErrorHandler: true });
-  return response.data?.data || null;
-}
-
-export async function updateNotificationPreferences(data) {
-  const response = await api.put("/suppliers/settings/notification-preferences", data, { skipGlobalErrorHandler: true });
-  return response.data?.data || null;
-}
-
-export async function fetchNotificationRecipients() {
-  const response = await api.get("/suppliers/settings/notification-recipients", { skipGlobalErrorHandler: true });
-  return response.data?.data?.recipients || [];
-}
-
-export async function addNotificationRecipient(data) {
-  const response = await api.post("/suppliers/settings/notification-recipients", data, { skipGlobalErrorHandler: true });
-  return response.data?.data?.recipient || null;
-}
-
-export async function updateNotificationRecipient(id, data) {
-  const response = await api.patch(`/suppliers/settings/notification-recipients/${id}`, data, { skipGlobalErrorHandler: true });
-  return response.data?.data?.recipient || null;
-}
-
-export async function resendNotificationRecipient(id) {
-  const response = await api.post(`/suppliers/settings/notification-recipients/${id}/resend`, {}, { skipGlobalErrorHandler: true });
-  return response.data?.data?.recipient || null;
-}
-
-export async function removeNotificationRecipient(id) {
-  await api.delete(`/suppliers/settings/notification-recipients/${id}`, { skipGlobalErrorHandler: true });
-}
-
-export async function fetchTaxInfo() {
-  const response = await api.get("/suppliers/settings/tax-info", { skipGlobalErrorHandler: true });
-  return response.data?.data || null;
-}
-
-export async function updateTaxInfo(data) {
-  const response = await api.patch("/suppliers/settings/tax-info", data, { skipGlobalErrorHandler: true });
-  return response.data?.data || null;
-}
-
-export async function fetchBookingRules() {
-  const response = await api.get("/suppliers/settings/booking-rules", { skipGlobalErrorHandler: true });
-  return response.data?.data || null;
-}
-
-export async function updateBookingRules(data) {
-  const response = await api.put("/suppliers/settings/booking-rules", data, { skipGlobalErrorHandler: true });
-  return response.data?.data || null;
-}
-
-export async function fetchTeamMembers() {
-  const response = await api.get("/suppliers/settings/team/members", { skipGlobalErrorHandler: true });
-  return response.data?.data?.members || [];
-}
-
-export async function inviteTeamMember(data) {
-  const response = await api.post("/suppliers/settings/team/invite", data, { skipGlobalErrorHandler: true });
-  // emailSent is false when the invitation row was created but the mail
-  // provider failed — the caller must surface that instead of "sent".
-  return {
-    member: response.data?.data?.member || null,
-    emailSent: response.data?.data?.emailSent !== false,
-    message: response.data?.message,
-  };
-}
-
-export async function resendInvite(email) {
-  const response = await api.post("/suppliers/settings/team/invite/resend", { email }, { skipGlobalErrorHandler: true });
-  return {
-    emailSent: response.data?.data?.emailSent !== false,
-    message: response.data?.message,
-  };
-}
-
-export async function removeTeamMember(id) {
-  return api.delete(`/suppliers/settings/team/members/${id}`, { skipGlobalErrorHandler: true });
-}
-
-export async function revokeTeamInvite(id) {
-  // Cancels a pending invitation (keeps the row, emails the invitee).
-  return api.delete(`/suppliers/settings/team/invite/${id}`, { skipGlobalErrorHandler: true });
-}
-
 /**
- * Update a member's roles. Accepts an array (up to 2) or a single role string;
- * `role` is sent as well so the request still works against an older API.
+ * Team invitations — the accept / decline flow behind `/team/invite`.
+ *
+ * Every other settings call lives in `features/stays/settingsApi.ts`; the
+ * copies that used to sit here had no mock branch and no callers.
+ *
+ * In mock mode these resolve against the demo dataset, so the invite page
+ * never reaches the live API from a demo session.
  */
-export async function updateTeamMemberRole(id, roles) {
-  const list = Array.isArray(roles) ? roles : [roles];
-  return api.patch(
-    `/suppliers/settings/team/members/${id}/role`,
-    { roles: list, role: list[0] },
-    { skipGlobalErrorHandler: true },
-  );
-}
+import api from "@/lib/axios";
+import { staysUsesMockData } from "@/features/stays/api";
+import { staysMock } from "@/features/stays/mock/store";
 
-export async function directAddTeamMember(data) {
-  const response = await api.post("/suppliers/settings/team/direct-add", data, { skipGlobalErrorHandler: true });
-  return response.data?.data?.member || null;
-}
+export type InviteDetails = {
+  supplierName: string;
+  invitedEmail: string;
+  roles?: string[];
+  /** Legacy single-role field older invitations still carry. */
+  role?: string;
+  invitedBy?: string;
+  expiresAt?: string;
+};
 
-export async function fetchInviteDetails(token) {
-  const response = await api.get(`/suppliers/settings/team/invite/${token}`, { skipGlobalErrorHandler: true });
+const requestConfig = { skipGlobalErrorHandler: true };
+
+export async function fetchInviteDetails(token: string): Promise<InviteDetails | null> {
+  if (staysUsesMockData) return staysMock.getInviteDetails(token);
+  const response = await api.get(`/suppliers/settings/team/invite/${token}`, requestConfig);
   return response.data?.data || null;
 }
 
-export async function acceptInvite(token) {
-  const response = await api.post(`/suppliers/settings/team/invite/${token}/accept`, {}, { skipGlobalErrorHandler: true });
+export async function acceptInvite(token: string): Promise<unknown> {
+  if (staysUsesMockData) return staysMock.acceptInvite(token);
+  const response = await api.post(`/suppliers/settings/team/invite/${token}/accept`, {}, requestConfig);
   return response.data?.data?.member || null;
 }
 
-export async function declineInvite(token) {
-  return api.post(`/suppliers/settings/team/invite/${token}/decline`, {}, { skipGlobalErrorHandler: true });
+export async function declineInvite(token: string): Promise<unknown> {
+  if (staysUsesMockData) return staysMock.declineInvite(token);
+  return api.post(`/suppliers/settings/team/invite/${token}/decline`, {}, requestConfig);
 }
-

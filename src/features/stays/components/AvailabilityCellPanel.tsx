@@ -5,6 +5,7 @@ import { format, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import StaysButton from "./StaysButton";
 import { formatMoney } from "../utils/money";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 /**
  * The availability editor — a right slide-over panel matching the Experiences
@@ -81,6 +82,7 @@ export default function AvailabilityCellPanel({
   onClose,
   onApply,
   onClear,
+  currency = DEFAULT_CURRENCY,
 }: any) {
   const effective = useMemo(
     () => ({
@@ -206,7 +208,7 @@ export default function AvailabilityCellPanel({
               <Section icon={Wallet} title="Inventory">
                 <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <ApplyRow
-                    label={`Nightly price (GHS) for ${format(parsed, "EEE, MMM d")}`}
+                    label={`Nightly price (${currency}) for ${format(parsed, "EEE, MMM d")}`}
                     value={priceDraft}
                     onChange={setPriceDraft}
                     onApply={applyPrice}

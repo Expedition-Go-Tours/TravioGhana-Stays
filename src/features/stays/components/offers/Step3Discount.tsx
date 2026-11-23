@@ -8,6 +8,7 @@ import { useStaysOfferBuilderStore } from "../../stores/staysOfferBuilderStore";
 import { cn } from "@/lib/utils";
 import { listProperties } from "../../api";
 import { formatMoney } from "../../utils/money";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 /**
  * Step 3 — Discount. The Stays mirror of the Experiences discount step:
@@ -178,7 +179,7 @@ export default function Step3Discount() {
           <div className="w-full max-w-md space-y-4">
             <div className="flex items-center justify-center gap-3">
               <div className="flex items-center gap-1.5">
-                <span className="text-lg font-semibold text-slate-500">GHS</span>
+                <span className="text-lg font-semibold text-slate-500">{DEFAULT_CURRENCY}</span>
                 <input
                   type="number"
                   min="0"

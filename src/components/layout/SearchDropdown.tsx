@@ -1,355 +1,317 @@
-import { useState, useRef, useEffect, useMemo, useCallback, Fragment } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, type ComponentType, type KeyboardEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { Search, Clock, X, CornerDownLeft } from "@/features/stays/icons";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { Clock, CornerDownLeft, Search, X } from "@/features/stays/icons";
 import { useTeamRole } from "@/hooks/useTeamRole";
 import { canOpenSettingsTab } from "@/config/pageAccess";
-import { cn } from "@/lib/utils";
 import { STAYS_NAV_ITEMS } from "@/config/staysNav";
+import { cn } from "@/lib/utils";
+import { DialogOverlay } from "@/components/ui";
+import { HEADER_ICON_BUTTON } from "./shell";
 
+/**
+ * The command palette — jump to any page you can open. ⌘K / Ctrl+K anywhere.
+ *
+ * A Radix dialog (focus trap, Escape, scroll lock, focus return) holding a
+ * combobox: the input owns focus while ↑/↓ move the active option, announced
+ * through aria-activedescendant. The list is the same permission-filtered
+ * navigation the sidebar shows, so search never offers a page that would 403.
+ */
+type IconComponent = ComponentType<{ size?: number; className?: string }>;
 type NavChild = { label: string; tab: string; keywords?: string[] };
-
 type NavItem = {
   label: string;
   path: string;
-  iconName?: string;
+  icon?: IconComponent;
   permission?: string | null;
   keywords?: string[];
   children?: NavChild[];
 };
+type FlatItem = { label: string; path: string; parent?: string; icon?: IconComponent; keywords: string[] };
 
-type FlatItem = NavItem & { parent?: string; path: string };
-
-const SEARCHABLE_TEXT = (item: FlatItem) =>
-  [item.label, item.parent, item.keywords || []].flat().join(" ").toLowerCase();
-
-function flattenNavItems(items: NavItem[]): FlatItem[] {
+function flatten(items: NavItem[]): FlatItem[] {
   const out: FlatItem[] = [];
   for (const item of items) {
-    out.push(item as FlatItem);
-    if (item.children) {
-      for (const child of item.children) {
-        out.push({
-          label: child.label,
-          parent: item.label,
-          path: `${item.path}?tab=${child.tab}`,
-          iconName: item.iconName,
-          permission: item.permission,
-          keywords: [...(item.keywords || []), ...(child.keywords || [])],
-        });
-      }
+    out.push({ label: item.label, path: item.path, icon: item.icon, keywords: item.keywords || [] });
+    for (const child of item.children || []) {
+      out.push({
+        label: child.label,
+        parent: item.label,
+        path: `${item.path}?tab=${child.tab}`,
+        icon: item.icon,
+        keywords: [...(item.keywords || []), ...(child.keywords || [])],
+      });
     }
   }
   return out;
 }
 
+const searchableText = (item: FlatItem) => [item.label, item.parent || "", ...item.keywords].join(" ").toLowerCase();
+
 const RECENT_KEY = "stays-search-recent";
 const MAX_RECENT = 6;
 
-function getRecent(): string[] {
+function readRecent(): string[] {
   try {
     const raw = localStorage.getItem(RECENT_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string") : [];
   } catch {
     return [];
   }
 }
 
-function persistRecent(recent: string[]) {
+function writeRecent(paths: string[]) {
   try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify(recent.slice(0, MAX_RECENT)));
-  } catch { /* ignore */ }
+    localStorage.setItem(RECENT_KEY, JSON.stringify(paths.slice(0, MAX_RECENT)));
+  } catch {
+    /* storage unavailable */
+  }
 }
 
-function saveRecent(path: string, validPaths: Set<string>) {
-  if (!validPaths.has(path)) return;
-  const recent = getRecent().filter((p) => p !== path);
-  recent.unshift(path);
-  persistRecent(recent);
-}
-
-function highlightMatch(text: string, query: string) {
+function highlight(text: string, query: string): ReactNode {
   if (!query) return text;
-  const idx = text.toLowerCase().indexOf(query.toLowerCase());
-  if (idx === -1) return text;
+  const index = text.toLowerCase().indexOf(query.toLowerCase());
+  if (index === -1) return text;
   return (
     <>
-      {text.slice(0, idx)}
-      <mark className="bg-[#044b3b]/10 text-[#044b3b] rounded px-0.5">
-        {text.slice(idx, idx + query.length)}
-      </mark>
-      {text.slice(idx + query.length)}
+      {text.slice(0, index)}
+      <mark className="rounded bg-brand-soft px-0.5 text-brand-ink">{text.slice(index, index + query.length)}</mark>
+      {text.slice(index + query.length)}
     </>
   );
 }
 
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-2 px-3 pt-2 pb-1">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-[#94a3a3]">{children}</span>
-    </div>
-  );
-}
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 export default function SearchDropdown() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [highlight, setHighlight] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(0);
   const navigate = useNavigate();
   const { hasPermission } = useTeamRole();
+  const listId = useId();
+  const optionId = (index: number) => `${listId}-option-${index}`;
 
-  const navItems = useMemo(() => {
-    const filtered = (STAYS_NAV_ITEMS as NavItem[])
+  const items = useMemo(() => {
+    const allowed = (STAYS_NAV_ITEMS as NavItem[])
       .filter((item) => !item.permission || hasPermission(item.permission))
-      .map((item) => (item.children
-        ? { ...item, children: item.children.filter((child) => canOpenSettingsTab(hasPermission, child.tab)) }
-        : item))
-      .filter((item) => !item.children || item.children.length > 0);
-    return flattenNavItems(filtered);
+      .map((item) =>
+        item.children ? { ...item, children: item.children.filter((child) => canOpenSettingsTab(hasPermission, child.tab)) } : item,
+      );
+    return flatten(allowed);
   }, [hasPermission]);
 
-  const validPaths = useMemo(() => new Set(navItems.map((i) => i.path)), [navItems]);
+  const byPath = useMemo(() => new Map(items.map((item) => [item.path, item])), [items]);
 
-  const recentItems = useMemo(() => {
-    if (!open) return [];
-    const raw = getRecent();
-    const valid = raw.filter((p) => validPaths.has(p));
-    if (valid.length !== raw.length) {
-      persistRecent(valid);
-    }
-    return valid
-      .map((path) => navItems.find((i) => i.path === path))
-      .filter((item): item is FlatItem => Boolean(item));
-  }, [open, validPaths, navItems]);
-
-  const pageResults = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return navItems.filter((i) => SEARCHABLE_TEXT(i).includes(q));
-  }, [navItems, query]);
-
-  const displayItems = useMemo(
-    () => (query.trim() ? pageResults : recentItems),
-    [query, pageResults, recentItems]
+  const [recentPaths, setRecentPaths] = useState<string[]>([]);
+  const recent = useMemo(
+    () => recentPaths.map((path) => byPath.get(path)).filter((item): item is FlatItem => Boolean(item)),
+    [recentPaths, byPath],
   );
 
-  const isEmpty = displayItems.length === 0;
+  const trimmed = query.trim();
+  const results = useMemo(() => {
+    if (!trimmed) return recent;
+    const q = trimmed.toLowerCase();
+    return items.filter((item) => searchableText(item).includes(q));
+  }, [items, recent, trimmed]);
 
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setOpen((o) => !o);
-        setHighlight(0);
-        setQuery("");
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+  const openPalette = useCallback(() => {
+    setQuery("");
+    setActive(0);
+    setRecentPaths(readRecent());
+    setOpen(true);
   }, []);
 
+  // ⌘K / Ctrl+K toggles the palette from anywhere.
+  useEffect(() => {
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        if (open) setOpen(false);
+        else openPalette();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, openPalette]);
+
+  // Keep the active option in view while arrowing through a long list.
   useEffect(() => {
     if (!open) return;
-    const t = window.setTimeout(() => inputRef.current?.focus(), 50);
-    return () => window.clearTimeout(t);
-  }, [open]);
+    document.getElementById(`${listId}-option-${active}`)?.scrollIntoView?.({ block: "nearest" });
+  }, [active, open, listId]);
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    if (open) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [open]);
-
-  const close = useCallback(() => {
+  const goTo = (item: FlatItem) => {
+    if (!byPath.has(item.path)) return; // only ever navigate to a page this role can open
+    writeRecent([item.path, ...readRecent().filter((path) => path !== item.path && byPath.has(path))]);
     setOpen(false);
-    setQuery("");
-    setHighlight(0);
-  }, []);
+    navigate(item.path);
+  };
 
-  const goTo = useCallback(
-    (path: string) => {
-      if (!validPaths.has(path)) {
-        console.warn(`[SearchDropdown] Navigation blocked: path "${path}" not in permission-filtered items`);
-        return;
-      }
-      saveRecent(path, validPaths);
-      close();
-      navigate(path);
-    },
-    [navigate, validPaths, close],
-  );
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setHighlight((h) => Math.min(h + 1, displayItems.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlight((h) => Math.max(h - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      const target = displayItems[highlight];
-      if (target) goTo(target.path);
-    } else if (e.key === "Escape") {
-      close();
+  const onInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (!results.length) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActive((index) => (index + 1) % results.length);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActive((index) => (index - 1 + results.length) % results.length);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setActive(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      setActive(results.length - 1);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      const target = results[active];
+      if (target) goTo(target);
     }
   };
 
+  const activeIndex = Math.min(active, Math.max(results.length - 1, 0));
+
   return (
-    <div className="relative w-auto sm:w-full" ref={containerRef}>
-      <button
-        onClick={() => {
-          if (!open) {
-            setHighlight(0);
-            setQuery("");
-          }
-          setOpen(!open);
-        }}
-        className={cn(
-          "flex h-9 items-center gap-2 rounded-xl text-sm transition-all duration-200",
-          "border-0 bg-transparent px-1.5 sm:border sm:bg-white sm:px-3 sm:w-full",
-          open
-            ? "text-[#044b3b] sm:border-[#044b3b]/40 sm:ring-2 sm:ring-[#044b3b]/10 sm:text-[#1e293b] sm:shadow"
-            : "text-[#64748b] sm:border-[#eaeaea] sm:hover:border-[#044b3b]/30 sm:hover:text-[#1e293b]",
-        )}
-        aria-label="Search pages"
-        aria-expanded={open}
-        aria-haspopup="dialog"
-      >
-        <span className="hidden sm:inline">{query || "Search…"}</span>
-        {!open && (
-          <kbd className="hidden sm:inline-block rounded-md border border-[#eaeaea] bg-[#f8fafc] px-1.5 py-0.5 text-[10px] font-medium text-[#64748b]">
-            ⌘K
+    <DialogPrimitive.Root open={open} onOpenChange={(next) => (next ? openPalette() : setOpen(false))}>
+      {/* Phones: an icon button. Larger screens: a search field look-alike with the shortcut. */}
+      <DialogPrimitive.Trigger asChild>
+        <button type="button" aria-label="Search pages" className={cn(HEADER_ICON_BUTTON, "sm:hidden")}>
+          <Search size={20} />
+        </button>
+      </DialogPrimitive.Trigger>
+      <DialogPrimitive.Trigger asChild>
+        <button
+          type="button"
+          aria-keyshortcuts={isMac ? "Meta+K" : "Control+K"}
+          className={cn(
+            "hidden h-11 w-full items-center gap-2.5 rounded-control border border-hairline-strong bg-surface px-3.5 text-sm text-muted transition-colors sm:flex",
+            "hover:border-slate-400 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          )}
+        >
+          <Search size={16} className="shrink-0" />
+          <span className="flex-1 truncate text-left">Search pages…</span>
+          <kbd className="rounded-md border border-hairline bg-surface px-1.5 py-0.5 font-sans text-caption font-semibold text-muted">
+            {isMac ? "⌘K" : "Ctrl K"}
           </kbd>
-        )}
-        <Search className="h-3.5 w-3.5 ml-auto" />
-      </button>
+        </button>
+      </DialogPrimitive.Trigger>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -6, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.97 }}
-            transition={{ duration: 0.15, ease: [0.32, 0.72, 0, 1] }}
-            className="fixed sm:absolute top-16 sm:top-full sm:mt-2 left-4 sm:left-0 right-4 sm:right-auto sm:w-full min-w-0 sm:min-w-[280px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-[#eaeaea] bg-white shadow-lg z-50"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Search pages"
-          >
-            {/* Search Input */}
-            <div className="flex items-center gap-3 border-b border-[#eaeaea] px-4">
-              <Search className="h-4 w-4 shrink-0 text-[#94a3a0]" />
-              <input
-                ref={inputRef}
-                value={query}
-                onChange={(e) => { setQuery(e.target.value); setHighlight(0); }}
-                onKeyDown={handleKeyDown}
-                placeholder="Search pages…"
-                className="h-12 w-full bg-transparent py-3 text-sm text-[#1e293b] placeholder:text-[#94a3a0] outline-none"
-              />
-              {query && (
-                <button
-                  onClick={() => { setQuery(""); setHighlight(0); }}
-                  className="flex h-6 w-6 items-center justify-center rounded-md text-[#94a3a3] hover:bg-[#f1f5f5] hover:text-[#1e293b] transition-colors"
-                  aria-label="Clear search"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-              <kbd className="hidden shrink-0 rounded-md border border-[#eaeaea] bg-[#f8fafc] px-1.5 py-0.5 text-[10px] font-medium text-[#64748b] sm:block">
-                ESC
-              </kbd>
-            </div>
+      <DialogPrimitive.Portal>
+        <DialogOverlay />
+        <DialogPrimitive.Content
+          aria-describedby={undefined}
+          className={cn(
+            "fixed left-1/2 top-[calc(var(--preview-banner-height)+0.75rem)] z-(--z-overlay) flex w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 flex-col",
+            "max-h-[min(36rem,calc(100dvh-var(--preview-banner-height)-1.5rem))] sm:top-[calc(var(--preview-banner-height)+12vh)]",
+            "overflow-hidden rounded-sheet border border-hairline bg-surface-raised text-ink shadow-lg outline-none",
+            "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          )}
+        >
+          <DialogPrimitive.Title className="sr-only">Search pages</DialogPrimitive.Title>
+          <div className="flex shrink-0 items-center gap-3 border-b border-hairline px-4">
+            <Search size={18} className="shrink-0 text-muted" aria-hidden="true" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setActive(0);
+              }}
+              onKeyDown={onInputKeyDown}
+              role="combobox"
+              aria-label="Search pages"
+              aria-expanded={results.length > 0}
+              aria-controls={listId}
+              aria-autocomplete="list"
+              aria-activedescendant={results.length ? optionId(activeIndex) : undefined}
+              placeholder="Search pages…"
+              className="h-14 w-full min-w-0 bg-transparent text-base text-ink outline-none placeholder:text-subtle sm:text-sm"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  setActive(0);
+                }}
+                aria-label="Clear search"
+                className={cn(HEADER_ICON_BUTTON, "-mr-2")}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
 
-            {/* Results / Recent */}
-            <div className="max-h-[400px] overflow-y-auto p-1.5">
-              {isEmpty ? (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f8fafc] border border-[#eaeaea] mb-3">
-                    <Search className="h-4 w-4 text-[#94a3a3]" />
-                  </div>
-                  <p className="text-sm font-medium text-[#64748b]">
-                    {query.trim() ? `No results for "${query}"` : "No recent searches"}
-                  </p>
-                  <p className="text-xs text-[#94a3a3] mt-1">
-                    {query.trim() ? "Try a different search term" : "Start typing to search pages"}
-                  </p>
-                </div>
-              ) : (
-                <>
-                  {!query.trim() && recentItems.length > 0 && (
-                    <div className="flex items-center gap-2 px-3 py-1.5">
-                      <Clock className="h-3 w-3 text-[#94a3a3]" />
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-[#94a3a3]">
-                        Recent
-                      </span>
-                    </div>
-                  )}
-                  {displayItems.map((item, idx) => (
-                    <Fragment key={item.path}>
-                      {query.trim() && idx === 0 && <SectionHeader>Pages</SectionHeader>}
-                      <button
-                        onClick={() => goTo(item.path)}
-                        onMouseEnter={() => setHighlight(idx)}
+          <div className="min-h-0 flex-1 overflow-y-auto p-2">
+            {!trimmed && recent.length > 0 && (
+              <p className="flex items-center gap-2 px-3 pb-1 pt-1.5 text-overline font-bold uppercase text-subtle">
+                <Clock size={12} aria-hidden="true" /> Recent
+              </p>
+            )}
+            {results.length > 0 ? (
+              <ul id={listId} role="listbox" aria-label={trimmed ? "Matching pages" : "Recent pages"}>
+                {results.map((item, index) => {
+                  const Icon = item.icon;
+                  const isActive = index === activeIndex;
+                  return (
+                    <li
+                      key={item.path}
+                      id={optionId(index)}
+                      role="option"
+                      aria-selected={isActive}
+                      onMouseMove={() => setActive(index)}
+                      onClick={() => goTo(item)}
+                      className={cn(
+                        "flex min-h-12 cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-sm",
+                        isActive ? "bg-brand-soft text-brand-ink" : "text-ink",
+                      )}
+                    >
+                      <span
+                        aria-hidden="true"
                         className={cn(
-                          "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors",
-                          idx === highlight
-                            ? "bg-[#044b3b]/5 text-[#044b3b]"
-                            : "text-[#1e293b] hover:bg-[#f8fafc]",
+                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                          isActive ? "bg-surface text-brand-ink" : "bg-surface-strong text-muted",
                         )}
                       >
-                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <span className="truncate font-medium">
-                            {highlightMatch(item.label, query.trim())}
-                          </span>
-                          {item.parent && (
-                            <span className="truncate text-[11px] text-[#94a3a3]">
-                              in {item.parent}
-                            </span>
-                          )}
-                        </span>
-                        {item.iconName && (
-                          <span className="shrink-0 text-xs text-[#94a3a3]">
-                            {item.iconName.replace(/([A-Z])/g, " $1").trim()}
-                          </span>
-                        )}
-                        {idx === highlight && (
-                          <CornerDownLeft className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                        )}
-                      </button>
-                    </Fragment>
-                  ))}
-                </>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-between border-t border-[#eaeaea] px-4 py-2.5 bg-[#f8fafc]">
-              <div className="flex items-center gap-3 text-[11px] text-[#64748b]">
-                <span className="flex items-center gap-1">
-                  <kbd className="rounded border border-[#eaeaea] bg-white px-1 py-0.5 text-[10px] font-medium">↑</kbd>
-                  <kbd className="rounded border border-[#eaeaea] bg-white px-1 py-0.5 text-[10px] font-medium">↓</kbd>
-                  navigate
-                </span>
-                <span className="flex items-center gap-1">
-                  <kbd className="rounded border border-[#eaeaea] bg-white px-1 py-0.5 text-[10px] font-medium">↵</kbd>
-                  select
-                </span>
+                        {Icon ? <Icon size={16} /> : <Search size={16} />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold">{highlight(item.label, trimmed)}</span>
+                        {item.parent && <span className="block truncate text-caption text-muted">in {item.parent}</span>}
+                      </span>
+                      {isActive && <CornerDownLeft size={14} className="shrink-0 opacity-70" aria-hidden="true" />}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className="px-4 py-10 text-center" role="status">
+                <p className="text-sm font-semibold text-ink">{trimmed ? `No pages match “${trimmed}”` : "No recent pages yet"}</p>
+                <p className="mt-1 text-caption text-muted">
+                  {trimmed ? "Try another word, like “payout” or “calendar”." : "Start typing to find a page."}
+                </p>
               </div>
-              <span className="text-[10px] text-[#94a3a3]">{navItems.length} pages</span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+            )}
+          </div>
+
+          <div className="hidden shrink-0 items-center justify-between border-t border-hairline bg-surface-soft px-4 py-2.5 text-caption text-muted sm:flex">
+            <span className="flex items-center gap-3">
+              <span>
+                <kbd className="font-sans font-semibold">↑</kbd> <kbd className="font-sans font-semibold">↓</kbd> to move
+              </span>
+              <span>
+                <kbd className="font-sans font-semibold">↵</kbd> to open
+              </span>
+              <span>
+                <kbd className="font-sans font-semibold">Esc</kbd> to close
+              </span>
+            </span>
+            <span>{items.length} pages</span>
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

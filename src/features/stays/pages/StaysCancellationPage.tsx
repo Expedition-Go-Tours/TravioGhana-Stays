@@ -4,7 +4,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, RotateCw } from "@/features/stays/icons";
-import StaysSurface from "../components/StaysSurface";
 import { StaysSelect } from "../components/StaysForm";
 import StaysCancellationCard from "../components/cancellation/StaysCancellationCard";
 import StaysAboutCancellationCard from "../components/cancellation/StaysAboutCancellationCard";
@@ -127,7 +126,7 @@ export default function StaysCancellationPage() {
   };
 
   return (
-    <StaysSurface>
+    <div>
       <div className="max-w-5xl space-y-6 bg-linear-to-b from-transparent via-teal-50/3 to-teal-50/6 rounded-[20px]">
         {/* Header */}
         <div className="flex items-center gap-4">
@@ -257,6 +256,6 @@ export default function StaysCancellationPage() {
           />
         )}
       </div>
-    </StaysSurface>
+    </div>
   );
 }

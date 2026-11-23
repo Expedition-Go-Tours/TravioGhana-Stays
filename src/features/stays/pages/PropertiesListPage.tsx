@@ -7,7 +7,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search } from "@/features/stays/icons";
 import { toast } from "sonner";
 import DeleteModal from "@/components/ui/DeleteModal";
-import StaysSurface from "../components/StaysSurface";
 import StaysPageHeader from "../components/StaysPageHeader";
 import StaysCard from "../components/StaysCard";
 import StaysButton from "../components/StaysButton";
@@ -72,7 +71,7 @@ export default function PropertiesListPage() {
   }, [properties, status, query]);
 
   return (
-    <StaysSurface>
+    <div>
       <StaysPageHeader
         title="Properties"
         subtitle={`${counts.total} accommodation ${counts.total === 1 ? "listing" : "listings"} · Manage drafts, reviews and live stays.`}
@@ -174,6 +173,6 @@ export default function PropertiesListPage() {
         title="Delete property"
         isLoading={deleteMutation.isPending}
       />
-    </StaysSurface>
+    </div>
   );
 }

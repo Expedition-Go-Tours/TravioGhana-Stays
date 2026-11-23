@@ -32,6 +32,7 @@ import {
 } from "../settingsApi";
 import { getAuthToken, useAuthStore } from "@/stores/authStore";
 import { cn, formatCurrency } from "@/lib/utils";
+import { statusEntry, TONE_CLASSES } from "@/lib/statusTones";
 import { config } from "@/config";
 import { useTeamRole } from "@/hooks/useTeamRole";
 import { canOpenSettingsTab } from "@/config/pageAccess";
@@ -81,24 +82,10 @@ const STAYS_ROLE_SUMMARIES = {
  * Stays payout statuses (COMPLETED, IN_REVIEW, …) mapped onto the same tones
  * the Experiences page uses for PAID / PENDING / APPROVED / FAILED.
  */
-const PAYOUT_STATUS_TONES = {
-  COMPLETED: "emerald",
-  PAID: "emerald",
-  APPROVED: "blue",
-  IN_REVIEW: "amber",
-  PENDING: "amber",
-  CANCELLED: "red",
-  REJECTED: "red",
-  FAILED: "red",
-};
-const payoutTone = (status) => PAYOUT_STATUS_TONES[status] || "slate";
-const PAYOUT_TONES = {
-  emerald: { iconBg: "bg-emerald-100", icon: "text-emerald-600", chip: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" },
-  blue: { iconBg: "bg-blue-100", icon: "text-blue-600", chip: "bg-blue-50 text-blue-700", dot: "bg-blue-500" },
-  amber: { iconBg: "bg-amber-100", icon: "text-amber-600", chip: "bg-amber-50 text-amber-700", dot: "bg-amber-500" },
-  red: { iconBg: "bg-red-100", icon: "text-red-600", chip: "bg-red-50 text-red-700", dot: "bg-red-500" },
-  slate: { iconBg: "bg-slate-100", icon: "text-slate-600", chip: "bg-slate-100 text-slate-600", dot: "bg-slate-400" },
-};
+const payoutTone = (status) => statusEntry("payout", status).tone;
+const PAYOUT_TONES = Object.fromEntries(
+  Object.entries(TONE_CLASSES).map(([tone, c]) => [tone, { iconBg: c.soft, icon: c.text, chip: c.chip, dot: c.dot }]),
+);
 
 const FADE_UP = {
   initial: { opacity: 0, y: 16 },

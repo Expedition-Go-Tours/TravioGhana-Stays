@@ -3,6 +3,7 @@ import { Check, ChevronLeft, Info, Lightbulb, ThumbsDown, ThumbsUp, X } from "@/
 import StaysButton from "../components/StaysButton";
 import { StaysField, StaysSelect } from "../components/StaysForm";
 import { formatMoney } from "../utils/money";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 /**
  * STEP 13 — Price per night, Booking's "Price per night" page: the
@@ -16,7 +17,7 @@ import { formatMoney } from "../utils/money";
 const COMMISSION_RATE = 0.15;
 const DISCOUNT_RATE = 0.2;
 const COMPARABLE_RANGE = { min: 120, median: 402, max: 673 };
-const CURRENCIES = ["GHS", "USD", "EUR", "GBP"];
+const CURRENCIES = ["USD", "GHS", "EUR", "GBP"];
 const COMMISSION_POINTS = [
   "24/7 help in your language",
   "Save time with automatically confirmed bookings",
@@ -59,7 +60,7 @@ export default function Step13PricePerNight({
 
   const priceValue = property.pricePerNight ?? "29.00";
   const price = Number(priceValue) || 0;
-  const currency = property.currency || "GHS";
+  const currency = property.currency || DEFAULT_CURRENCY;
   const earnings = price * (1 - COMMISSION_RATE);
   const discounted = price * (1 - DISCOUNT_RATE);
   const promotion = property.promotion ?? true;

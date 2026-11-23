@@ -5,7 +5,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft, Loader2, Pencil } from "@/features/stays/icons";
 import { useTeamRole } from "@/hooks/useTeamRole";
-import StaysSurface from "../components/StaysSurface";
 import StaysButton from "../components/StaysButton";
 import StaysCard from "../components/StaysCard";
 import StaysPill from "../components/StaysPill";
@@ -39,18 +38,18 @@ export default function PropertyPreviewPage() {
 
   if (isLoading) {
     return (
-      <StaysSurface className="max-w-6xl">
+      <div className="max-w-6xl">
         <StaysCard className="flex min-h-[240px] flex-col items-center justify-center gap-3">
           <Loader2 size={26} className="animate-spin text-emerald-600" />
           <p className="text-sm text-slate-500">Loading property details…</p>
         </StaysCard>
-      </StaysSurface>
+      </div>
     );
   }
 
   if (isError || !property) {
     return (
-      <StaysSurface className="max-w-6xl">
+      <div className="max-w-6xl">
         <StaysCard className="flex min-h-[260px] flex-col items-center justify-center gap-3 text-center">
           <span className="grid h-12 w-12 place-items-center rounded-full bg-amber-50 text-amber-600">
             <AlertTriangle size={22} />
@@ -64,12 +63,12 @@ export default function PropertyPreviewPage() {
             Back to properties
           </StaysButton>
         </StaysCard>
-      </StaysSurface>
+      </div>
     );
   }
 
   return (
-    <StaysSurface className="max-w-6xl">
+    <div className="max-w-6xl">
       <button
         type="button"
         onClick={backToProperties}
@@ -107,6 +106,6 @@ export default function PropertyPreviewPage() {
         canEdit={canEdit}
         onEdit={(path) => navigate(path)}
       />
-    </StaysSurface>
+    </div>
   );
 }

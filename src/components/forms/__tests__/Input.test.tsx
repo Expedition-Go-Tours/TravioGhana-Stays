@@ -40,15 +40,17 @@ describe('Input', () => {
     render(<Input error={{ message: 'Error message' }} />);
     
     const input = screen.getByRole('textbox');
-    expect(input).toHaveClass('border-red-300');
+    // Invalid state is exposed to assistive tech, and the red border keys off it.
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveClass('aria-invalid:border-danger');
   });
 
   it('should render without error state', () => {
     render(<Input />);
     
     const input = screen.getByRole('textbox');
-    expect(input).not.toHaveClass('border-red-300');
-    expect(input).toHaveClass('border-slate-300');
+    expect(input).not.toHaveAttribute('aria-invalid');
+    expect(input).toHaveClass('border-hairline-strong');
   });
 
   it('should render as disabled', () => {
@@ -56,7 +58,7 @@ describe('Input', () => {
     
     const input = screen.getByRole('textbox');
     expect(input).toBeDisabled();
-    expect(input).toHaveClass('disabled:bg-slate-50');
+    expect(input).toHaveClass('disabled:bg-surface-soft');
   });
 
   it('should render with different types', () => {
@@ -91,6 +93,6 @@ describe('Input', () => {
     
     const input = screen.getByRole('textbox');
     expect(input).toHaveClass('focus:outline-none');
-    expect(input).toHaveClass('focus:ring-2');
+    expect(input).toHaveClass('focus:ring-3');
   });
 });

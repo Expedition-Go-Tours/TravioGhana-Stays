@@ -12,7 +12,8 @@ export default defineConfig({
     testTimeout: 30000,
     hookTimeout: 30000,
     env: {
-      VITE_API_BASE_URL: 'https://apiv1.travioafrica.com/api',
+      // Matches .env.example; MSW intercepts every request, nothing leaves the test.
+      VITE_API_BASE_URL: 'https://api.travioghana.com/api',
       // Component tests assert against the in-feature dataset. Without this,
       // a developer's `.env` (VITE_STAYS_DATA_SOURCE=api) leaks into Vitest
       // and every Stays page test fails trying to reach the network.
@@ -22,8 +23,6 @@ export default defineConfig({
       '**/node_modules/**',
       '**/dist/**',
       '**/e2e/**', // Exclude E2E tests (run with Playwright)
-      'TravioGhana-Supplier-staging/**', // local reference copy, not part of this app
-      'travio-stays/**', // local scaffold, not part of this app
       '**/.{idea,git,cache,output,temp}/**',
     ],
     coverage: {

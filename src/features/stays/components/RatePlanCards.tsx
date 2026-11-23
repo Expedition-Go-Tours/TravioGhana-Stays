@@ -4,6 +4,7 @@ import StaysButton from "./StaysButton";
 import RatePlanForm from "./RatePlanForm";
 import { planMetaChips, planPrice } from "../utils/ratePlans";
 import { formatMoney } from "../utils/money";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 /**
  * Rate plans grouped by room type — the prototype's `.rate-room` sections,
@@ -72,6 +73,7 @@ export default function RatePlanCards({
                   </p>
                 </div>
                 <RatePlanForm
+                  currency={property.currency || DEFAULT_CURRENCY}
                   key={editing.plan?.id || "new"}
                   room={room}
                   plan={editing.plan || null}

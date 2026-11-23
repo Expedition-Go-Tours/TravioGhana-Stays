@@ -1,21 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { formatMoney } from '../money';
 
-describe('formatMoney', () => {
-  it('prints whole amounts the way the prototype does', () => {
-    expect(formatMoney(6950)).toBe('GHS 6,950');
-    expect(formatMoney(750)).toBe('GHS 750');
-    expect(formatMoney(0)).toBe('GHS 0');
+// Normalise the non-breaking space Intl puts between a currency code and the amount.
+const text = (value: string) => value.replace(/\u00a0/g, ' ');
+
+describe('formatMoney (Stays)', () => {
+  it('uses the shared standard: USD by default, two decimals', () => {
+    expect(formatMoney(6950)).toBe('$6,950.00');
+    expect(formatMoney(750)).toBe('$750.00');
+    expect(formatMoney(0)).toBe('$0.00');
+    expect(formatMoney(1234.5)).toBe('$1,234.50');
   });
 
-  it('keeps cents only when the amount actually has a fraction', () => {
-    expect(formatMoney(1234.5)).toBe('GHS 1,234.5');
-    expect(formatMoney(999.99)).toBe('GHS 999.99');
+  it('keeps the record currency — amounts are never converted', () => {
+    expect(text(formatMoney(1000, 'GHS'))).toBe('GHS 1,000.00');
+    expect(formatMoney(1000, 'EUR')).toBe('€1,000.00');
   });
 
-  it('honours the payload currency and survives junk', () => {
-    expect(formatMoney(1000, 'USD')).toBe('USD 1,000');
-    expect(formatMoney(undefined)).toBe('GHS 0');
-    expect(formatMoney('not-a-number')).toBe('GHS 0');
+  it('survives junk', () => {
+    expect(formatMoney(undefined)).toBe('$0.00');
+    expect(formatMoney('not-a-number')).toBe('$0.00');
   });
 });

@@ -1,16 +1,31 @@
-// @ts-nocheck
-// Migration marker: ported from JavaScript; props/data shapes are not annotated yet.
-// Remove this directive once the file is typed — `npm run typecheck` then enforces it.
-import axios from "axios";
+import axios, {
+  AxiosError,
+  AxiosHeaders,
+  type AxiosRequestConfig,
+  type InternalAxiosRequestConfig,
+} from "axios";
+import { toast } from "sonner";
 import config from "@/config";
-import { retryWithBackoff, isRetryableError, handleApiError } from "./errorHandler";
+import {
+  handleApiError,
+  isRetryableError,
+  LIVE_WRITE_BLOCKED,
+  LIVE_WRITE_BLOCKED_MESSAGE,
+} from "./errorHandler";
 import { useAuthStore, getAuthToken } from "@/stores/authStore";
 import { refreshAccessToken, isStaleSessionRequest } from "./tokenRefresh";
 
+/**
+ * Paths (after the Ghana rewrite below) that must carry a token. A request
+ * to one of these without a token is cancelled locally with AUTH_REQUIRED
+ * instead of being sent and bounced with a 401.
+ */
 const AUTH_REQUIRED_PREFIXES = [
   "/suppliers",
   "/tours/supplier",
   "/travioghana/supplier",
+  "/stays/supplier",
+  "/finance",
   "/bookings",
   "/notifications",
   "/admin",
@@ -19,102 +34,96 @@ const AUTH_REQUIRED_PREFIXES = [
   "/payout",
 ];
 
+/** Automatic retries are only safe for methods that cannot change state. */
+const IDEMPOTENT_METHODS = new Set(["get", "head", "options"]);
+
+/** Backoff between automatic retries: base × 2^(attempt − 1). Mutable for tests. */
+export const retryPolicy = { baseDelayMs: 1000 };
+
 const api = axios.create({
   baseURL: config.api.baseURL,
   timeout: config.api.timeout,
 });
 
-// Rewrite supplier paths to Ghana namespace
-// /suppliers/dashboard → /travioghana/supplier/dashboard
-// /tours/supplier/* → /travioghana/supplier/tours/*
-// /bookings/supplier/* → /travioghana/supplier/bookings/*
-// Auth endpoints stay on shared backend
-const GHANA_SUPPLIER_REWRITES = [
-  [/^\/suppliers\/dashboard/, '/travioghana/supplier/dashboard'],
-  [/^\/suppliers\/monthly-revenue/, '/travioghana/supplier/monthly-revenue'],
-  [/^\/tours\/supplier\/my-tours/, '/travioghana/supplier/tours'],
-  [/^\/bookings\/supplier\/bookings/, '/travioghana/supplier/bookings'],
-  [/^\/bookings\/supplier\/pickup-planner/, '/travioghana/supplier/pickup-planner'],
-  [/^\/reviews\/supplier\/reviews/, '/travioghana/supplier/reviews'],
-  [/^\/suppliers\/settings/, '/travioghana/supplier/settings'],
-  [/^\/suppliers\/special-offers/, '/travioghana/supplier/special-offers'],
-  [/^\/suppliers\/cancellation/, '/travioghana/supplier/cancellation'],
-  [/^\/suppliers\/products\/list/, '/travioghana/supplier/products/list'],
-  [/^\/finance\//, '/travioghana/supplier/finance/'],
-  [/^\/payouts\/me/, '/travioghana/supplier/payouts'],
-  [/^\/payout-methods\/me/, '/travioghana/supplier/payout-methods'],
-  [/^\/notifications/, '/travioghana/supplier/notifications'],
-  // Stays workspace (property suppliers): /stays/supplier/** → Ghana
-  // namespace, same as every other supplier-scoped path above.
-  [/^\/stays\/supplier/, '/travioghana/supplier/stays'],
+// Supplier paths live under the Ghana namespace on the shared backend, e.g.
+// /stays/supplier/* → /travioghana/supplier/stays/*. Auth endpoints stay put.
+const GHANA_SUPPLIER_REWRITES: [RegExp, string][] = [
+  [/^\/suppliers\/dashboard/, "/travioghana/supplier/dashboard"],
+  [/^\/suppliers\/monthly-revenue/, "/travioghana/supplier/monthly-revenue"],
+  [/^\/tours\/supplier\/my-tours/, "/travioghana/supplier/tours"],
+  [/^\/bookings\/supplier\/bookings/, "/travioghana/supplier/bookings"],
+  [/^\/bookings\/supplier\/pickup-planner/, "/travioghana/supplier/pickup-planner"],
+  [/^\/reviews\/supplier\/reviews/, "/travioghana/supplier/reviews"],
+  [/^\/suppliers\/settings/, "/travioghana/supplier/settings"],
+  [/^\/suppliers\/special-offers/, "/travioghana/supplier/special-offers"],
+  [/^\/suppliers\/cancellation/, "/travioghana/supplier/cancellation"],
+  [/^\/suppliers\/products\/list/, "/travioghana/supplier/products/list"],
+  [/^\/finance\//, "/travioghana/supplier/finance/"],
+  [/^\/payouts\/me/, "/travioghana/supplier/payouts"],
+  [/^\/payout-methods\/me/, "/travioghana/supplier/payout-methods"],
+  [/^\/notifications/, "/travioghana/supplier/notifications"],
+  [/^\/stays\/supplier/, "/travioghana/supplier/stays"],
 ];
 
-api.interceptors.request.use((config) => {
-  const url = config.url || '';
+export function rewriteSupplierPath(url: string): string {
   for (const [pattern, replacement] of GHANA_SUPPLIER_REWRITES) {
-    if (pattern.test(url)) {
-      config.url = url.replace(pattern, replacement);
-      break;
-    }
+    if (pattern.test(url)) return url.replace(pattern, replacement);
   }
-  return config;
-});
+  return url;
+}
 
-function getRequestAuthorization(headers) {
+const pathOf = (url: string | undefined) => String(url || "").split("?")[0];
+
+function getRequestAuthorization(headers: AxiosRequestConfig["headers"] | undefined): string | null {
   if (!headers) return null;
-  if (typeof headers.get === "function") {
-    return headers.get("Authorization") || headers.get("authorization");
+  if (headers instanceof AxiosHeaders) {
+    const value = headers.get("Authorization") || headers.get("authorization");
+    return value ? String(value) : null;
   }
-  return headers.Authorization || headers.authorization || null;
+  const plain = headers as Record<string, unknown>;
+  const value = plain.Authorization || plain.authorization;
+  return value ? String(value) : null;
 }
 
-function setRequestAuthorization(headers, value) {
-  if (typeof headers.set === "function") {
-    headers.set("Authorization", value);
-    return headers;
-  }
-  headers.Authorization = value;
-  return headers;
+function setRequestAuthorization(requestConfig: InternalAxiosRequestConfig, value: string) {
+  requestConfig.headers = AxiosHeaders.from(requestConfig.headers ?? {});
+  requestConfig.headers.set("Authorization", value);
 }
 
-function requiresAuth(requestConfig) {
-  if (requestConfig.skipAuthGuard) {
-    return false;
-  }
-
-  const url = (requestConfig.url || "").split("?")[0];
-  if (url === "/auth/login" || url.endsWith("/auth/login")) {
-    return false;
-  }
-
-  if (AUTH_REQUIRED_PREFIXES.some((prefix) => url.startsWith(prefix))) {
-    return true;
-  }
-
-  const method = (requestConfig.method || "get").toLowerCase();
-  if (/^\/tours(\/|$)/.test(url) && method !== "get") {
-    return true;
-  }
-
-  return false;
-}
-
-function createAuthRequiredError() {
-  const error = new axios.CanceledError("Authentication required");
-  error.code = "AUTH_REQUIRED";
-  return error;
-}
-
-function isAuthEndpoint(url) {
-  const path = String(url || "").split("?")[0];
-  return (
-    path === "/auth/login" ||
-    path.endsWith("/auth/login") ||
-    path === "/auth/refresh" ||
-    path.endsWith("/auth/refresh") ||
-    path === "/auth/logout" ||
-    path.endsWith("/auth/logout")
+function isAuthEndpoint(url: string | undefined) {
+  const path = pathOf(url);
+  return ["/auth/login", "/auth/refresh", "/auth/logout"].some(
+    (endpoint) => path === endpoint || path.endsWith(endpoint),
   );
+}
+
+function requiresAuth(requestConfig: InternalAxiosRequestConfig) {
+  if (requestConfig.skipAuthGuard) return false;
+  const path = pathOf(requestConfig.url);
+  if (isAuthEndpoint(path)) return false;
+  if (AUTH_REQUIRED_PREFIXES.some((prefix) => path.startsWith(prefix))) return true;
+  const method = (requestConfig.method || "get").toLowerCase();
+  return /^\/tours(\/|$)/.test(path) && method !== "get";
+}
+
+/**
+ * Dev write guard. A development build pointed at the live API
+ * (`VITE_STAYS_DATA_SOURCE=api`) talks to production, so it only sends reads.
+ * Sign-in, refresh and sign-out (`/auth/*`) are always allowed. Opt in with
+ * `VITE_ALLOW_LIVE_WRITES=true`. Production builds are never affected.
+ */
+export function isLiveWriteBlocked(requestConfig: Pick<AxiosRequestConfig, "method" | "url">) {
+  if (!config.isDevelopment()) return false;
+  if (config.stays.dataSource !== "api") return false;
+  if (config.stays.allowLiveWrites) return false;
+  const method = (requestConfig.method || "get").toLowerCase();
+  if (IDEMPOTENT_METHODS.has(method)) return false;
+  const path = pathOf(requestConfig.url);
+  return !(path.startsWith("/auth/") || path.includes("/auth/"));
+}
+
+function localError(code: string, message: string, requestConfig: InternalAxiosRequestConfig) {
+  return new AxiosError(message, code, requestConfig);
 }
 
 function isAuthPagePath() {
@@ -141,109 +150,88 @@ function performForcedLogout() {
   }
 }
 
-// Request interceptor to attach JWT token
-api.interceptors.request.use(
-  (requestConfig) => {
-    const token = getAuthToken();
-    const headers = requestConfig.headers ?? {};
+/**
+ * One ordered request pipeline. (Axios runs separately registered request
+ * interceptors in reverse order, which used to run the auth guard before the
+ * path rewrite.) Order: rewrite → write guard → attach token → auth guard.
+ */
+api.interceptors.request.use((requestConfig) => {
+  requestConfig.url = rewriteSupplierPath(requestConfig.url || "");
 
-    if (token && !getRequestAuthorization(headers)) {
-      requestConfig.headers = setRequestAuthorization(headers, `Bearer ${token}`);
-    }
+  if (isLiveWriteBlocked(requestConfig)) {
+    return Promise.reject(localError(LIVE_WRITE_BLOCKED, LIVE_WRITE_BLOCKED_MESSAGE, requestConfig));
+  }
 
-    const authorization = getRequestAuthorization(requestConfig.headers ?? headers);
-    if (requiresAuth(requestConfig) && !authorization) {
-      return Promise.reject(createAuthRequiredError());
-    }
+  const token = getAuthToken();
+  if (token && !getRequestAuthorization(requestConfig.headers)) {
+    setRequestAuthorization(requestConfig, `Bearer ${token}`);
+  }
 
-    return requestConfig;
-  },
-  (error) => {
+  if (requiresAuth(requestConfig) && !getRequestAuthorization(requestConfig.headers)) {
+    const error = new axios.CanceledError("Authentication required");
+    error.code = "AUTH_REQUIRED";
     return Promise.reject(error);
   }
-);
 
-// Response interceptor for error handling
+  return requestConfig;
+});
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-
+  async (error: AxiosError) => {
     if (axios.isCancel(error) || error.code === "AUTH_REQUIRED") {
       return Promise.reject(error);
     }
 
-    if (config.isDevelopment()) {
-      console.error("API Error:", {
-        status: error.response?.status,
-        url: originalRequest?.url,
-        message: error.message,
-        response: error.response?.data,
+    if (error.code === LIVE_WRITE_BLOCKED) {
+      // Fixed id: sonner keeps one toast however many writes a page attempts.
+      toast.warning(LIVE_WRITE_BLOCKED_MESSAGE, {
+        id: LIVE_WRITE_BLOCKED,
+        description: "Set VITE_ALLOW_LIVE_WRITES=true to send it anyway.",
       });
+      return Promise.reject(error);
     }
 
-    // Handle 401 — attempt token refresh via backend
-    if (error.response?.status === 401 && !originalRequest?._retry) {
-      // Auth endpoints 401 on their own merit (e.g. wrong password on login);
-      // never try to "refresh" or force-logout from them.
-      if (isAuthEndpoint(originalRequest?.url)) {
-        return Promise.reject(error);
-      }
+    const originalRequest = error.config;
+    const status = error.response?.status;
 
-      // Stale request from a previous session (its token no longer matches the
-      // current one — e.g. a fresh login just replaced the tokens). Ignore it:
-      // do NOT wipe the session or redirect while a login may be in flight.
-      const sentAuthorization = getRequestAuthorization(originalRequest?.headers);
-      if (isStaleSessionRequest(sentAuthorization)) {
-        return Promise.reject(error);
-      }
+    // 401 — refresh the access token once, then replay the request.
+    if (status === 401 && originalRequest && !originalRequest._authRefreshed) {
+      // Auth endpoints 401 on their own merit (e.g. a wrong password).
+      if (isAuthEndpoint(originalRequest.url)) return Promise.reject(error);
 
-      originalRequest._retry = true;
+      // A leftover request from a previous session: never tear down a fresh one.
+      const sentAuthorization = getRequestAuthorization(originalRequest.headers);
+      if (isStaleSessionRequest(sentAuthorization)) return Promise.reject(error);
 
+      originalRequest._authRefreshed = true;
       try {
         const data = await refreshAccessToken();
-        if (originalRequest.headers) {
-          originalRequest.headers = setRequestAuthorization(
-            originalRequest.headers,
-            `Bearer ${data.accessToken}`
-          );
-        }
+        setRequestAuthorization(originalRequest, `Bearer ${data.accessToken}`);
         return api(originalRequest);
-      } catch (refreshErr) {
-        if (config.isDevelopment()) {
-          console.error("[Auth] Token refresh failed:", refreshErr?.response?.status, refreshErr?.message);
-        }
-
-        // The session changed while refreshing (a new login replaced the
-        // tokens) — don't tear down the fresh session.
-        if (isStaleSessionRequest(sentAuthorization)) {
-          return Promise.reject(error);
-        }
-
+      } catch {
+        if (isStaleSessionRequest(sentAuthorization)) return Promise.reject(error);
         performForcedLogout();
         return Promise.reject(error);
       }
     }
 
-    // Retry logic for retryable errors
-    if (isRetryableError(error) && originalRequest && !originalRequest._retry && !originalRequest.skipRetry) {
-      originalRequest._retry = true;
-      originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
-
-      if (originalRequest._retryCount <= config.api.retryAttempts) {
-        try {
-          return await retryWithBackoff(
-            () => api.request(originalRequest),
-            config.api.retryAttempts - originalRequest._retryCount,
-            1000
-          );
-        } catch (retryError) {
-          if (!originalRequest?.skipGlobalErrorHandler) {
-            handleApiError(retryError);
-          }
-          return Promise.reject(retryError);
-        }
-      }
+    // Network drop / timeout / 5xx — retry reads only. Each retry re-enters
+    // this pipeline, so only the final failure reaches the error handler.
+    const method = (originalRequest?.method || "get").toLowerCase();
+    const attempts = originalRequest?._retryCount ?? 0;
+    if (
+      originalRequest &&
+      !originalRequest.skipRetry &&
+      IDEMPOTENT_METHODS.has(method) &&
+      isRetryableError(error) &&
+      attempts < config.api.retryAttempts
+    ) {
+      originalRequest._retryCount = attempts + 1;
+      await wait(retryPolicy.baseDelayMs * 2 ** attempts);
+      return api(originalRequest);
     }
 
     if (!originalRequest?.skipGlobalErrorHandler) {
@@ -251,7 +239,7 @@ api.interceptors.response.use(
     }
 
     if (
-      error.response?.status === 401 &&
+      status === 401 &&
       !isAuthEndpoint(originalRequest?.url) &&
       !isStaleSessionRequest(getRequestAuthorization(originalRequest?.headers)) &&
       typeof window !== "undefined" &&
@@ -261,16 +249,7 @@ api.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
-
-export async function apiRequest(requestFn) {
-  try {
-    return await retryWithBackoff(requestFn, config.api.retryAttempts);
-  } catch (error) {
-    handleApiError(error);
-    throw error;
-  }
-}
 
 export default api;

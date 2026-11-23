@@ -1,100 +1,85 @@
+import { useRef, type KeyboardEvent, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { ScrollFade } from "@/components/ui";
+
+type Option = { value: string; label: ReactNode };
+
+type StaysSegProps = {
+  options: Option[];
+  value: string;
+  onChange?: (value: string) => void;
+  ariaLabel?: string;
+  /** chips: filter row · tabs: underline sections · segmented: compact pill switch */
+  variant?: "chips" | "tabs" | "segmented";
+  className?: string;
+};
+
+const ITEM = {
+  chips: cn(
+    "h-11 rounded-full border px-4 text-sm font-semibold sm:h-9 sm:px-3.5",
+    "border-hairline-strong bg-surface text-body hover:border-slate-400 hover:text-ink",
+    "aria-selected:border-brand aria-selected:bg-brand aria-selected:text-on-brand",
+  ),
+  tabs: cn(
+    "relative h-11 px-3 text-sm font-semibold text-muted hover:text-ink",
+    "after:absolute after:inset-x-3 after:-bottom-px after:h-0.5 after:rounded-full after:bg-transparent",
+    "aria-selected:text-ink aria-selected:after:bg-brand",
+  ),
+  segmented: cn(
+    "h-9 rounded-lg px-3 text-sm font-semibold text-muted hover:text-ink",
+    "aria-selected:bg-surface aria-selected:text-ink aria-selected:shadow-xs",
+  ),
+} as const;
+
+const LIST = {
+  chips: "gap-2",
+  tabs: "gap-1",
+  segmented: "gap-0.5 rounded-xl bg-surface-strong p-1",
+} as const;
 
 /**
- * Two filter treatments from the portal, chosen per context:
- *
- *   chips (default)  the Bookings quick-filter row — `bg-[#044b3b]` active
- *   tabs             the Finance/Settings underline tabs — emerald underline
- *   segmented        the Availability date-mode pill — grey track, white active
- *
- * Role semantics are explicit so screen readers announce the selected option.
+ * A single-choice switch for filters and views. It changes what the page
+ * shows rather than revealing separate panels, so it uses tab semantics with
+ * arrow-key movement (roving focus) but no panel wiring.
  */
-export default function StaysSeg({ options, value, onChange, ariaLabel, variant = "chips", className }) {
-  if (variant === "segmented") {
-    return (
-      <div
-        role="tablist"
-        aria-label={ariaLabel}
-        className={cn("flex items-center gap-0 rounded-lg bg-slate-100 p-0.5", className)}
-      >
-        {options.map((option) => {
-          const isActive = option.value === value;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              onClick={() => onChange?.(option.value)}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30",
-                isActive
-                  ? "bg-white text-slate-800 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700",
-              )}
-            >
-              {option.label}
-            </button>
-          );
-        })}
-      </div>
-    );
-  }
+export default function StaysSeg({ options, value, onChange, ariaLabel, variant = "chips", className }: StaysSegProps) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value));
 
-  if (variant === "tabs") {
-    return (
-      <div
-        role="tablist"
-        aria-label={ariaLabel}
-        className={cn("flex items-center gap-5 overflow-x-auto border-b border-gray-200 scrollbar-none sm:gap-6", className)}
-      >
-        {options.map((option) => {
-          const isActive = option.value === value;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              onClick={() => onChange?.(option.value)}
-              className={cn(
-                "flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 pb-3 pt-1 text-sm font-medium transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30",
-                isActive
-                  ? "border-emerald-500 text-emerald-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700",
-              )}
-            >
-              {option.label}
-            </button>
-          );
-        })}
-      </div>
-    );
-  }
+  const onKeyDown = (event: KeyboardEvent, index: number) => {
+    const last = options.length - 1;
+    const next =
+      event.key === "ArrowRight" ? (index === last ? 0 : index + 1)
+      : event.key === "ArrowLeft" ? (index === 0 ? last : index - 1)
+      : event.key === "Home" ? 0
+      : event.key === "End" ? last
+      : null;
+    if (next === null) return;
+    event.preventDefault();
+    refs.current[next]?.focus();
+    onChange?.(options[next].value);
+  };
 
-  return (
-    <div
-      role="tablist"
-      aria-label={ariaLabel}
-      className={cn("flex items-center gap-1 overflow-x-auto scrollbar-none", className)}
-    >
-      {options.map((option) => {
-        const isActive = option.value === value;
+  const list = (
+    <div role="tablist" aria-label={ariaLabel} className={cn("flex items-center", variant !== "segmented" && "w-max", LIST[variant], className)}>
+      {options.map((option, index) => {
+        const active = option.value === value;
         return (
           <button
             key={option.value}
+            ref={(el) => {
+              refs.current[index] = el;
+            }}
             type="button"
             role="tab"
-            aria-selected={isActive}
+            aria-selected={active}
+            tabIndex={index === selectedIndex ? 0 : -1}
             onClick={() => onChange?.(option.value)}
+            onKeyDown={(event) => onKeyDown(event, index)}
             className={cn(
-              "whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30",
-              isActive
-                ? "bg-[#044b3b] text-white shadow-sm"
-                : "text-slate-500 hover:bg-emerald-50/40 hover:text-slate-700",
+              "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-bg",
+              ITEM[variant],
             )}
           >
             {option.label}
@@ -103,4 +88,7 @@ export default function StaysSeg({ options, value, onChange, ariaLabel, variant 
       })}
     </div>
   );
+
+  if (variant === "segmented") return list;
+  return <ScrollFade className={cn(variant === "tabs" && "border-b border-hairline")}>{list}</ScrollFade>;
 }
