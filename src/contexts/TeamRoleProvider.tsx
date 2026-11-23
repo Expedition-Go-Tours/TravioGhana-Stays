@@ -29,24 +29,58 @@ const MOCK_OWNER_ROLE: RoleState = {
   storefronts: ["GHANA"],
 };
 
+/** Role names the API may use for a full-access account. */
+const ADMIN_ROLE_NAMES = new Set(["admin", "administrator", "owner", "super_admin", "super-admin", "superadmin"]);
+
+type RoleLike =
+  | string
+  | { name?: string; slug?: string; key?: string; role?: string }
+  | null
+  | undefined;
+
 type MyRoleResponse = {
-  role?: string | null;
-  roles?: string[];
+  role?: RoleLike;
+  roles?: RoleLike[];
   permissions?: string[];
-  isOwner?: boolean;
+  isOwner?: boolean | string;
   storefronts?: string[];
 };
+
+function roleName(value: RoleLike): string {
+  if (!value) return "";
+  if (typeof value === "string") return value.trim().toLowerCase();
+  return String(value.name ?? value.slug ?? value.key ?? value.role ?? "").trim().toLowerCase();
+}
+
+function normalizeRoles(role: RoleLike, roles: RoleLike[] | undefined): string[] {
+  const list = [...(Array.isArray(roles) ? roles : []), role].map(roleName).filter(Boolean);
+  return [...new Set(list)];
+}
+
+function isAdminRole(role: RoleState): boolean {
+  if (role.isOwner) return true;
+  if (role.permissions.includes("*")) return true;
+  return [role.teamRole, ...role.teamRoles].some((name) =>
+    ADMIN_ROLE_NAMES.has(String(name ?? "").trim().toLowerCase()),
+  );
+}
 
 async function fetchMyRole(): Promise<RoleState> {
   try {
     const response = await api.get("/suppliers/settings/team/my-role", { skipGlobalErrorHandler: true });
     const data: MyRoleResponse = response.data?.data || {};
+    const teamRole = roleName(data.role) || null;
+    const teamRoles = normalizeRoles(data.role, data.roles);
     return {
-      teamRole: data.role || null,
-      teamRoles: data.roles || (data.role ? [data.role] : []),
-      permissions: data.permissions || [],
-      isOwner: Boolean(data.isOwner),
-      storefronts: data.storefronts || [],
+      teamRole: teamRole || teamRoles[0] || null,
+      teamRoles: teamRoles.length ? teamRoles : teamRole ? [teamRole] : [],
+      permissions: Array.isArray(data.permissions)
+        ? data.permissions.filter((permission): permission is string => typeof permission === "string")
+        : [],
+      isOwner: data.isOwner === true || data.isOwner === "true",
+      storefronts: Array.isArray(data.storefronts)
+        ? data.storefronts.filter((storefront): storefront is string => typeof storefront === "string")
+        : [],
     };
   } catch {
     return EMPTY_ROLE;
@@ -57,6 +91,7 @@ export function TeamRoleProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<RoleState>(EMPTY_ROLE);
   const [loading, setLoading] = useState(true);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
 
   const refetch = useCallback(async () => {
     setLoading(true);
@@ -90,14 +125,23 @@ export function TeamRoleProvider({ children }: { children: ReactNode }) {
     };
   }, [isAuthenticated]);
 
+  // A supplier account is the business owner, and an admin user role is the
+  // same authority. Treat either as full access even if `/my-role` is
+  // unavailable or disagrees. Team members use plain customer accounts.
+  const userRoles = (user?.roles ?? []).map((name) => String(name).trim().toLowerCase());
+  const isAdminUserAccount = userRoles.some(
+    (name) => name === "supplier" || ADMIN_ROLE_NAMES.has(name),
+  );
+
   const value = useMemo<TeamRoleContextValue>(() => {
-    // Permission-based, never role-name based: an ADMIN-role member who is not
-    // the owner is treated exactly like the owner, and each key is the one the
-    // API enforces on the matching route.
+    const effectiveRole = isAdminUserAccount
+      ? { ...MOCK_OWNER_ROLE, storefronts: role.storefronts.length ? role.storefronts : MOCK_OWNER_ROLE.storefronts }
+      : role;
+    const hasAdminAccess = isAdminRole(effectiveRole);
     const hasPermission = (permission: string) =>
-      role.isOwner || permissionMatches(role.permissions, permission);
+      hasAdminAccess || permissionMatches(effectiveRole.permissions, permission);
     return {
-      ...role,
+      ...effectiveRole,
       loading,
       refetch,
       hasPermission,
@@ -108,7 +152,7 @@ export function TeamRoleProvider({ children }: { children: ReactNode }) {
       canManageAnalytics: () => hasPermission("analytics.view"),
       canManageBusinessProfile: () => hasPermission("settings.business"),
     };
-  }, [role, loading, refetch]);
+  }, [role, loading, refetch, isAdminUserAccount]);
 
   return <TeamRoleContext.Provider value={value}>{children}</TeamRoleContext.Provider>;
 }

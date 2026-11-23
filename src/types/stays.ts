@@ -12,7 +12,7 @@
 
 /* ── Shared ───────────────────────────────────────────────────────────────── */
 
-/** ISO 4217 code ("USD", "GHS", "EUR", …). USD is the workspace default. */
+/** ISO 4217 code. USD is the only currency used by the Stays workspace. */
 export type CurrencyCode = string;
 
 /** `YYYY-MM-DD` (bookings and stay dates). */
@@ -196,6 +196,10 @@ export type Booking = {
   currency?: CurrencyCode;
   status: BookingStatus;
   guests: number;
+  /** When the reservation was created — drives "new reservations today" on the dashboard. */
+  createdAt?: ISODateTime;
+  /** When a cancelled reservation was cancelled — drives "cancellations today". */
+  cancelledAt?: ISODateTime;
   reason?: string;
   note?: string;
   refundAmount?: number | null;
@@ -254,6 +258,10 @@ export type Review = {
   rating: number;
   text: string;
   reply: string;
+  /** The property the review belongs to, when the API knows. */
+  propertyId?: string | null;
+  /** When the review was left — used by the dashboard's period filter. */
+  createdAt?: ISODateTime;
 };
 
 /* ── Guest messaging ──────────────────────────────────────────────────────── */
@@ -282,6 +290,8 @@ export type Conversation = {
   type: "SUPPLIER_CUSTOMER" | (string & {});
   updatedAt: ISODateTime;
   unreadCount: number;
+  /** Which property the guest is messaging about, when the API knows. */
+  propertyId?: string | null;
   participants: { userId: string; user: ChatUser; lastReadAt: ISODateTime | null }[];
   /** List responses carry only the latest message; the thread endpoint carries the rest. */
   messages: Message[];
@@ -550,6 +560,127 @@ export type CancellationRecord = {
 
 export type CurrencyTotal = { currency: CurrencyCode; bookings: number; grossBookingValue: number };
 
+/** The "Happening today" strip on the operations homepage. */
+export type DashboardHappeningToday = {
+  /** Reservations created today. */
+  reservations: number;
+  /** Guests checking in today. */
+  arrivals: number;
+  /** Guests checking out today. */
+  departures: number;
+  /** Guest reviews still waiting for a reply. */
+  reviews: number;
+  /** Reservations cancelled today. */
+  cancellations: number;
+};
+
+/** One row of the per-property operations table. */
+export type DashboardPropertyRow = {
+  id: string;
+  name: string;
+  city: string;
+  region: string;
+  country: string;
+  photo?: string | null;
+  status: PropertyStatus;
+  /** False when the listing cannot currently take new bookings. */
+  bookable: boolean;
+  arrivalsNext48h: number;
+  departuresNext48h: number;
+  /** Unread guest conversations for this property. */
+  guestMessages: number;
+  /** Unread messages from Travio support. */
+  supportMessages: number;
+};
+
+/* ── Dashboard: performance ──────────────────────────────────────────────── */
+
+export type DashboardPerformancePeriod =
+  | "month-to-date"
+  | "last-7-days"
+  | "last-30-days"
+  | "last-90-days"
+  | "year-to-date";
+
+export type DashboardPerformanceComparison = "none" | "previous-period" | "previous-year";
+
+/** The eight summary figures on the Performance tab. */
+export type DashboardPerformanceMetrics = {
+  bookedAvgDailyRate: number;
+  stayedAvgDailyRate: number;
+  cancellationRate: number;
+  stayedRoomNights: number;
+  stayedEarnings: number;
+  avgBookingWindow: number;
+  avgLengthOfStay: number;
+  openProperties: number;
+  totalProperties: number;
+};
+
+/** One property row of the Performance table. */
+export type DashboardPerformanceProperty = {
+  id: string;
+  name: string;
+  city: string;
+  region: string;
+  country: string;
+  photo?: string | null;
+  bookedAvgDailyRate: number;
+  stayedAvgDailyRate: number;
+  cancellationRate: number;
+  stayedRoomNights: number;
+  stayedEarnings: number;
+  /** Aggregate inputs used when the shared filters narrow the summary. */
+  bookedRoomNights: number;
+  bookedEarnings: number;
+  cancellations: number;
+  noShows: number;
+  avgBookingWindow: number;
+  avgLengthOfStay: number;
+  bookable: boolean;
+  /** Average review score out of 10, or null when the period has no reviews. */
+  reviewScore: number | null;
+  reviewCount: number;
+  reservations: number;
+  /** Not tracked until storefront analytics exist; null shows a dash. */
+  clickThroughRate: number | null;
+  conversionRate: number | null;
+};
+
+export type DashboardPerformance = {
+  period: { key: DashboardPerformancePeriod; label: string; from: ISODate; to: ISODate };
+  comparison: { key: DashboardPerformanceComparison; label: string };
+  summary: DashboardPerformanceMetrics;
+  /** Present when a comparison is selected. */
+  previous?: DashboardPerformanceMetrics;
+  properties: DashboardPerformanceProperty[];
+};
+
+/* ── Dashboard: settings ─────────────────────────────────────────────────── */
+
+/** One row of the property settings table. */
+export type DashboardSettingsProperty = {
+  id: string;
+  name: string;
+  city: string;
+  region: string;
+  country: string;
+  photo?: string | null;
+  /** Enrolled in the local Travio Rewards programme. */
+  rewardsEligible: boolean;
+  preferredEligible: boolean;
+  /** The strictest minimum-stay rule across the property's rate plans. */
+  minimumStay: number;
+  localRates: boolean;
+  mobileRates: boolean;
+  /** 0–100 listing completeness score. */
+  listingScore: number;
+};
+
+export type DashboardSettings = {
+  properties: DashboardSettingsProperty[];
+};
+
 export type DashboardSummary = {
   stats: {
     upcomingArrivals: number;
@@ -576,6 +707,16 @@ export type DashboardSummary = {
     /** Cover photo URL. Optional: the dashboard falls back to a placeholder tile. */
     photo?: string | null;
   }[];
+  /**
+   * Operations homepage fields. Optional so the live API can roll the new
+   * view out incrementally; the page falls back to the fields above.
+   */
+  happeningToday?: DashboardHappeningToday;
+  properties?: DashboardPropertyRow[];
+  /** The Performance tab, computed for the requested period/comparison. */
+  performance?: DashboardPerformance;
+  /** The Settings tab's per-property controls. */
+  settings?: DashboardSettings;
 };
 
 export type AnalyticsSummary = {

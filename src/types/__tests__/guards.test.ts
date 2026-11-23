@@ -49,7 +49,7 @@ describe('checkList', () => {
 
 describe('collectCurrencies', () => {
   it('finds currency codes anywhere in a payload', () => {
-    const payload = { data: { currency: 'usd', rows: [{ currency: 'GHS' }, { nested: { currency: 'EUR' } }] } };
-    expect([...collectCurrencies(payload)].sort()).toEqual(['EUR', 'GHS', 'USD']);
+    const payload = { data: { currency: 'usd', rows: [{ currency: 'EUR' }, { nested: { currency: 'GBP' } }] } };
+    expect([...collectCurrencies(payload)].sort()).toEqual(['EUR', 'GBP', 'USD']);
   });
 });

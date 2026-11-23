@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Check, ChevronLeft, Info, Lightbulb, ThumbsDown, ThumbsUp, X } from "@/features/stays/icons";
 import StaysButton from "../components/StaysButton";
-import { StaysField, StaysSelect } from "../components/StaysForm";
 import { formatMoney } from "../utils/money";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 
@@ -17,7 +16,6 @@ import { DEFAULT_CURRENCY } from "@/lib/money";
 const COMMISSION_RATE = 0.15;
 const DISCOUNT_RATE = 0.2;
 const COMPARABLE_RANGE = { min: 120, median: 402, max: 673 };
-const CURRENCIES = ["USD", "GHS", "EUR", "GBP"];
 const COMMISSION_POINTS = [
   "24/7 help in your language",
   "Save time with automatically confirmed bookings",
@@ -60,7 +58,7 @@ export default function Step13PricePerNight({
 
   const priceValue = property.pricePerNight ?? "29.00";
   const price = Number(priceValue) || 0;
-  const currency = property.currency || DEFAULT_CURRENCY;
+  const currency = DEFAULT_CURRENCY;
   const earnings = price * (1 - COMMISSION_RATE);
   const discounted = price * (1 - DISCOUNT_RATE);
   const promotion = property.promotion ?? true;
@@ -157,15 +155,7 @@ export default function Step13PricePerNight({
               How much do you want to charge per night?
             </h2>
 
-            <div className="mt-5 max-w-xs">
-              <StaysField label="Currency you receive payments in">
-                <StaysSelect
-                  options={CURRENCIES}
-                  value={currency}
-                  onChange={(event) => patch({ currency: event.target.value })}
-                />
-              </StaysField>
-            </div>
+            <p className="mt-5 text-sm text-slate-600">All prices are shown and charged in USD.</p>
 
             <div className="mt-5">
               <label

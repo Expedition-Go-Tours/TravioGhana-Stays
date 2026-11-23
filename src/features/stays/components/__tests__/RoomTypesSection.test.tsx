@@ -24,7 +24,7 @@ function renderSection({ rooms = [], ratePlans = [], onChange = vi.fn(), ...prop
     <RoomTypesSection
       rooms={rooms}
       ratePlans={ratePlans}
-      currency="GHS"
+      currency="USD"
       onChange={onChange}
       {...props}
     />,
@@ -52,10 +52,10 @@ describe("RoomTypesSection", () => {
     await user.type(screen.getByLabelText("Number of units"), "3");
     await user.clear(screen.getByLabelText("Max guests"));
     await user.type(screen.getByLabelText("Max guests"), "4");
-    await user.clear(screen.getByLabelText("Nightly price (GHS)"));
-    await user.type(screen.getByLabelText("Nightly price (GHS)"), "600");
-    await user.clear(screen.getByLabelText("Weekend price (GHS)"));
-    await user.type(screen.getByLabelText("Weekend price (GHS)"), "700");
+    await user.clear(screen.getByLabelText("Nightly price (USD)"));
+    await user.type(screen.getByLabelText("Nightly price (USD)"), "600");
+    await user.clear(screen.getByLabelText("Weekend price (USD)"));
+    await user.type(screen.getByLabelText("Weekend price (USD)"), "700");
 
     await user.click(screen.getByRole("button", { name: "Add room type" }));
 
@@ -85,8 +85,8 @@ describe("RoomTypesSection", () => {
     const { onChange } = renderSection({ rooms: [room], ratePlans: [plan] });
 
     await user.click(screen.getByRole("button", { name: "Edit Deluxe King Room" }));
-    await user.clear(screen.getByLabelText("Nightly price (GHS)"));
-    await user.type(screen.getByLabelText("Nightly price (GHS)"), "500");
+    await user.clear(screen.getByLabelText("Nightly price (USD)"));
+    await user.type(screen.getByLabelText("Nightly price (USD)"), "500");
     await user.click(screen.getByRole("button", { name: "Save room type" }));
 
     const next = onChange.mock.calls[0][0];
@@ -110,7 +110,7 @@ describe("RoomTypesSection", () => {
 
     await user.click(screen.getByRole("button", { name: "Add your first room type" }));
     await user.clear(screen.getByLabelText("Room type name"));
-    await user.clear(screen.getByLabelText("Nightly price (GHS)"));
+    await user.clear(screen.getByLabelText("Nightly price (USD)"));
     await user.click(screen.getByRole("button", { name: "Add room type" }));
 
     expect(screen.getByText("Name this room type")).toBeTruthy();

@@ -76,12 +76,12 @@ describe('API status probes', () => {
     server.use(
       http.get(`${API}/travioghana/supplier/stays/finance/summary`, async () => {
         const summary = await staysMock.getFinanceSummary();
-        return HttpResponse.json({ data: { ...summary, currency: 'GHS' } });
+        return HttpResponse.json({ data: { ...summary, currency: 'EUR' } });
       }),
     );
     const result = (await runProbes()).find((r) => r.id === 'finance-summary');
     expect(result?.outcome).toBe('ok');
-    expect(result?.notes.join(' ')).toMatch(/GHS/);
+    expect(result?.notes.join(' ')).toMatch(/EUR/);
   });
 
   it('never puts response bodies in the report', async () => {

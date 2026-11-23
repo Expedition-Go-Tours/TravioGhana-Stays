@@ -21,7 +21,15 @@ const envelope = (data: unknown) => HttpResponse.json({ success: true, data });
 
 export function staysApiHandlers() {
   return [
-    http.get(`${S}/dashboard`, async () => envelope(await staysMock.getDashboard())),
+    http.get(`${S}/dashboard`, async ({ request }) => {
+      const url = new URL(request.url);
+      return envelope(
+        await staysMock.getDashboard({
+          period: url.searchParams.get('period') ?? undefined,
+          compare: url.searchParams.get('compare') ?? undefined,
+        }),
+      );
+    }),
     http.get(`${S}/properties`, async () => envelope({ properties: await staysMock.listProperties() })),
     http.get(`${S}/properties/:id`, async ({ params }) => {
       try {

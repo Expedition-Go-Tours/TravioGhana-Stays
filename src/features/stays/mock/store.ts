@@ -19,7 +19,7 @@ const delay = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
 const uid = (prefix) => `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 /** Bump when the seed or stored shape changes — old payloads reseed. */
-const STORAGE_VERSION = 7;
+const STORAGE_VERSION = 9;
 export const STAYS_MOCK_STORAGE_KEY = "stays-mock-db-v1";
 
 /**
@@ -97,6 +97,325 @@ function bookingCountFor(propertyId) {
 }
 
 const nonCancelled = () => db.bookings.filter((b) => b.status !== "Cancelled");
+
+/* ── Operations homepage helpers ─────────────────────────────────────────── */
+
+function localDateParts(date: Date) {
+  return {
+    year: date.getFullYear(),
+    month: date.getMonth(),
+    day: date.getDate(),
+  };
+}
+
+/** `YYYY-MM-DD` in the workspace's local time (Africa/Accra). */
+function localDateISO(date = new Date()) {
+  const { year, month, day } = localDateParts(date);
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** Calendar days from today to a plain `YYYY-MM-DD` date (negative = past). */
+function daysFromToday(value) {
+  const [year, month, day] = String(value || "").slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return Number.NaN;
+  const today = localDateParts(new Date());
+  const start = new Date(today.year, today.month, today.day);
+  const target = new Date(year, month - 1, day);
+  return Math.round((target.getTime() - start.getTime()) / 86_400_000);
+}
+
+/** Today and tomorrow count as the next 48 hours for calendar-date bookings. */
+function inNext48Hours(value) {
+  const days = daysFromToday(value);
+  return days >= 0 && days <= 1;
+}
+
+function dateOnly(value) {
+  return String(value || "").slice(0, 10);
+}
+
+function isToday(value) {
+  return Boolean(value) && dateOnly(value) === localDateISO();
+}
+
+/* ── Performance homepage helpers ────────────────────────────────────────── */
+
+const PERFORMANCE_PERIODS = [
+  { key: "month-to-date", label: "Month-to-date" },
+  { key: "last-7-days", label: "Last 7 days" },
+  { key: "last-30-days", label: "Last 30 days" },
+  { key: "last-90-days", label: "Last 90 days" },
+  { key: "year-to-date", label: "Year-to-date" },
+];
+
+const PERFORMANCE_COMPARISONS = [
+  { key: "none", label: "No comparison" },
+  { key: "previous-period", label: "Previous period" },
+  { key: "previous-year", label: "Previous year" },
+];
+
+function normalizePeriod(value) {
+  return PERFORMANCE_PERIODS.some((period) => period.key === value) ? value : "month-to-date";
+}
+
+function normalizeComparison(value) {
+  return PERFORMANCE_COMPARISONS.some((comparison) => comparison.key === value) ? value : "none";
+}
+
+function periodLabel(value) {
+  return PERFORMANCE_PERIODS.find((period) => period.key === value)?.label || "Month-to-date";
+}
+
+function comparisonLabel(value) {
+  return PERFORMANCE_COMPARISONS.find((comparison) => comparison.key === value)?.label || "No comparison";
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function dateFromISO(value) {
+  const [year, month, day] = String(value || "").slice(0, 10).split("-").map(Number);
+  return year && month && day ? new Date(year, month - 1, day) : new Date();
+}
+
+function isoFromDate(date) {
+  return localDateISO(date);
+}
+
+function shiftYear(value, delta) {
+  const date = dateFromISO(value);
+  const originalMonth = date.getMonth();
+  date.setFullYear(date.getFullYear() + delta);
+  if (date.getMonth() !== originalMonth) date.setDate(0);
+  return isoFromDate(date);
+}
+
+function daysInMonth(year, month) {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+/** Inclusive date-only bounds for the selected dashboard period. */
+function performanceBounds(period) {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  let start;
+
+  if (period === "month-to-date") start = new Date(year, month, 1);
+  else if (period === "last-7-days") start = addDays(today, -6);
+  else if (period === "last-30-days") start = addDays(today, -29);
+  else if (period === "last-90-days") start = addDays(today, -89);
+  else start = new Date(year, 0, 1);
+
+  return { from: isoFromDate(start), to: isoFromDate(today) };
+}
+
+function previousBounds(period) {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const day = today.getDate();
+
+  if (period === "month-to-date") {
+    const previousMonth = month === 0 ? 11 : month - 1;
+    const previousYear = month === 0 ? year - 1 : year;
+    const endDay = Math.min(day, daysInMonth(previousYear, previousMonth));
+    return {
+      from: isoFromDate(new Date(previousYear, previousMonth, 1)),
+      to: isoFromDate(new Date(previousYear, previousMonth, endDay)),
+    };
+  }
+
+  if (period === "year-to-date") {
+    const previousYear = year - 1;
+    const endDay = Math.min(day, daysInMonth(previousYear, month));
+    return {
+      from: isoFromDate(new Date(previousYear, 0, 1)),
+      to: isoFromDate(new Date(previousYear, month, endDay)),
+    };
+  }
+
+  const span = period === "last-7-days" ? 7 : period === "last-30-days" ? 30 : 90;
+  return {
+    from: isoFromDate(addDays(today, -(span * 2 - 1))),
+    to: isoFromDate(addDays(today, -span)),
+  };
+}
+
+function withinDate(value, from, to) {
+  const date = dateOnly(value);
+  return Boolean(date) && date >= from && date <= to;
+}
+
+function nightsBetween(from, to) {
+  const start = dateFromISO(from);
+  const end = dateFromISO(to);
+  return Math.max(0, Math.round((end.getTime() - start.getTime()) / 86_400_000));
+}
+
+/** Older demo bookings predate the timestamp field; use a sensible booking date. */
+function bookingCreatedAt(booking) {
+  if (booking.createdAt) return new Date(booking.createdAt);
+  return addDays(dateFromISO(booking.from), -21);
+}
+
+function average(values) {
+  return values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
+}
+
+function round(value, digits = 1) {
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
+
+function performanceForRange(from, to) {
+  const inRange = db.bookings.filter((booking) => withinDate(booking.from, from, to));
+  const bookings = inRange.filter((booking) => booking.status !== "Cancelled" && booking.status !== "No-show");
+  const cancelled = inRange.filter((booking) => booking.status === "Cancelled");
+  const noShows = inRange.filter((booking) => booking.status === "No-show");
+  const stayed = bookings.filter((booking) => {
+    const checkout = dateOnly(booking.to);
+    return checkout <= localDateISO() && checkout >= from && checkout <= to;
+  });
+
+  const bookedNights = bookings.reduce((total, booking) => total + nightsBetween(booking.from, booking.to), 0);
+  const bookedRevenue = bookings.reduce((total, booking) => total + booking.amount, 0);
+  const stayedNights = stayed.reduce((total, booking) => total + nightsBetween(booking.from, booking.to), 0);
+  const stayedRevenue = stayed.reduce((total, booking) => total + booking.amount, 0);
+  const bookingWindows = bookings.map((booking) =>
+    Math.max(0, Math.round((dateFromISO(booking.from).getTime() - bookingCreatedAt(booking).getTime()) / 86_400_000)),
+  );
+
+  return {
+    bookings,
+    cancelled,
+    noShows,
+    stayed,
+    metrics: {
+      bookedAvgDailyRate: bookedNights ? round(bookedRevenue / bookedNights, 2) : 0,
+      stayedAvgDailyRate: stayedNights ? round(stayedRevenue / stayedNights, 2) : 0,
+      cancellationRate: inRange.length ? round((cancelled.length / inRange.length) * 100, 1) : 0,
+      stayedRoomNights: stayedNights,
+      stayedEarnings: round(stayedRevenue, 2),
+      avgBookingWindow: round(average(bookingWindows), 1),
+      avgLengthOfStay: bookings.length ? round(bookedNights / bookings.length, 1) : 0,
+      openProperties: db.properties.filter((property) => property.status === "Live").length,
+      totalProperties: db.properties.length,
+    },
+  };
+}
+
+function performancePropertyRows(from, to) {
+  const range = performanceForRange(from, to);
+  return db.properties.map((property) => {
+    const bookings = range.bookings.filter((booking) => booking.propertyId === property.id);
+    const cancelled = range.cancelled.filter((booking) => booking.propertyId === property.id);
+    const noShows = range.noShows.filter((booking) => booking.propertyId === property.id);
+    const stayed = range.stayed.filter((booking) => booking.propertyId === property.id);
+    const allForProperty = range.bookings
+      .concat(range.cancelled, range.noShows)
+      .filter((booking) => booking.propertyId === property.id);
+    const nights = bookings.reduce((total, booking) => total + nightsBetween(booking.from, booking.to), 0);
+    const revenue = bookings.reduce((total, booking) => total + booking.amount, 0);
+    const stayedNights = stayed.reduce((total, booking) => total + nightsBetween(booking.from, booking.to), 0);
+    const stayedRevenue = stayed.reduce((total, booking) => total + booking.amount, 0);
+    const bookingWindows = bookings.map((booking) =>
+      Math.max(
+        0,
+        Math.round(
+          (dateFromISO(booking.from).getTime() - bookingCreatedAt(booking).getTime()) / 86_400_000,
+        ),
+      ),
+    );
+    const reviews = (db.reviews || []).filter(
+      (review) =>
+        review.propertyId === property.id &&
+        review.createdAt &&
+        withinDate(review.createdAt, from, to),
+    );
+    const reviewScore = reviews.length ? round(average(reviews.map((review) => review.rating)) * 2, 1) : null;
+
+    return {
+      id: property.id,
+      name: property.name,
+      city: property.city || "",
+      region: property.region || "",
+      country: property.country || "Ghana",
+      photo: property.photos?.[0] ?? null,
+      bookedAvgDailyRate: nights ? round(revenue / nights, 2) : 0,
+      stayedAvgDailyRate: stayedNights ? round(stayedRevenue / stayedNights, 2) : 0,
+      cancellationRate: allForProperty.length
+        ? round((cancelled.length / allForProperty.length) * 100, 1)
+        : 0,
+      stayedRoomNights: stayedNights,
+      stayedEarnings: round(stayedRevenue, 2),
+      bookedRoomNights: nights,
+      bookedEarnings: round(revenue, 2),
+      cancellations: cancelled.length,
+      noShows: noShows.length,
+      avgBookingWindow: round(average(bookingWindows), 1),
+      avgLengthOfStay: bookings.length ? round(nights / bookings.length, 1) : 0,
+      bookable: property.status === "Live",
+      reviewScore,
+      reviewCount: reviews.length,
+      reservations: bookings.length,
+      clickThroughRate: null,
+      conversionRate: null,
+    };
+  });
+}
+
+/* ── Settings homepage helpers ───────────────────────────────────────────── */
+
+/**
+ * A transparent listing-completeness score for the Settings table. It mirrors
+ * the fields the property builder asks for; status lowers the score because a
+ * paused or unapproved listing cannot be discovered by guests.
+ */
+function listingScore(property) {
+  const photos = Array.isArray(property.photos) ? property.photos.filter(Boolean).length : 0;
+  let score = 0;
+  score += photos >= 3 ? 30 : photos >= 1 ? 18 : 0;
+  score += property.description?.trim() || property.shortDescription?.trim() ? 10 : 0;
+  score += (property.facilities?.length || 0) >= 4 ? 8 : (property.facilities?.length || 0) >= 1 ? 4 : 0;
+  score += property.rooms?.length ? 10 : 0;
+  score += property.ratePlans?.length ? 12 : 0;
+  score += property.address?.trim() && property.city?.trim() && property.region?.trim() ? 10 : 0;
+  score += property.checkin && property.checkout ? 5 : 0;
+  score += property.cancellation ? 5 : 0;
+  score += property.hostProfile?.property?.included ? 8 : 0;
+  score += property.maxGuests && property.bathrooms ? 5 : 0;
+  score += property.services?.breakfast || property.services?.parking ? 5 : 0;
+  const statusAdjustment =
+    property.status === "Live" ? 0 : property.status === "Paused" ? -10 : property.status === "Under review" ? -20 : -35;
+  return Math.max(0, Math.min(100, Math.round(score + statusAdjustment)));
+}
+
+function minimumStay(property) {
+  const plans = Array.isArray(property.ratePlans) ? property.ratePlans : [];
+  return plans.reduce((strictest, plan) => Math.max(strictest, Number(plan.minStay) || 1), 1);
+}
+
+function settingsPropertyRows() {
+  return db.properties.map((property) => ({
+    id: property.id,
+    name: property.name,
+    city: property.city || "",
+    region: property.region || "",
+    country: property.country || "Ghana",
+    photo: property.photos?.[0] ?? null,
+    rewardsEligible: Boolean(property.promotion) && property.status === "Live",
+    // The preferred-partner programme is not live locally yet.
+    preferredEligible: false,
+    minimumStay: minimumStay(property),
+    localRates: false,
+    mobileRates: false,
+    listingScore: listingScore(property),
+  }));
+}
 
 /** An error shaped like an Axios HTTP error, so pages read it the same way in both modes. */
 function httpError(status, message) {
@@ -209,10 +528,37 @@ export const staysMock = {
   },
 
   // ── Dashboard ─────────────────────────────────────────────────────────
-  async getDashboard() {
+  async getDashboard({ period = "month-to-date", compare = "none" } = {}) {
     await delay();
+    const normalizedPeriod = normalizePeriod(period);
+    const normalizedComparison = normalizeComparison(compare);
+    const bounds = performanceBounds(normalizedPeriod);
+    const range = performanceForRange(bounds.from, bounds.to);
+    const previousRange =
+      normalizedComparison === "none"
+        ? null
+        : normalizedComparison === "previous-year"
+          ? { from: shiftYear(bounds.from, -1), to: shiftYear(bounds.to, -1) }
+          : previousBounds(normalizedPeriod);
+    const performance = {
+      period: {
+        key: normalizedPeriod,
+        label: periodLabel(normalizedPeriod),
+        from: bounds.from,
+        to: bounds.to,
+      },
+      comparison: {
+        key: normalizedComparison,
+        label: comparisonLabel(normalizedComparison),
+      },
+      summary: range.metrics,
+      previous: previousRange ? performanceForRange(previousRange.from, previousRange.to).metrics : undefined,
+      properties: performancePropertyRows(bounds.from, bounds.to),
+    };
+    const settings = { properties: settingsPropertyRows() };
     const gross = nonCancelled().reduce((sum, b) => sum + b.amount, 0);
     const cancelled = db.bookings.filter((b) => b.status === "Cancelled").length;
+    const active = db.bookings.filter((b) => b.status !== "Cancelled" && b.status !== "No-show");
     const topProperties = db.properties
       .map((p) => ({
         id: p.id,
@@ -226,6 +572,34 @@ export const staysMock = {
       }))
       .sort((a, b) => b.bookings - a.bookings)
       .slice(0, 5);
+
+    const happeningToday = {
+      reservations: active.filter((b) => isToday(b.createdAt)).length,
+      arrivals: active.filter((b) => dateOnly(b.from) === localDateISO()).length,
+      departures: active.filter((b) => dateOnly(b.to) === localDateISO()).length,
+      reviews: db.reviews.filter((review) => !review.reply).length,
+      cancellations: db.bookings.filter((b) => b.status === "Cancelled" && isToday(b.cancelledAt)).length,
+    };
+
+    const properties = db.properties.map((p) => {
+      const propertyBookings = active.filter((b) => b.propertyId === p.id);
+      return {
+        id: p.id,
+        name: p.name,
+        city: p.city || "",
+        region: p.region || "",
+        country: p.country || "Ghana",
+        photo: p.photos?.[0] ?? null,
+        status: p.status,
+        bookable: p.status === "Live",
+        arrivalsNext48h: propertyBookings.filter((b) => inNext48Hours(b.from)).length,
+        departuresNext48h: propertyBookings.filter((b) => inNext48Hours(b.to)).length,
+        guestMessages: (db.conversations || [])
+          .filter((conversation) => conversation.propertyId === p.id)
+          .reduce((total, conversation) => total + (conversation.unreadCount || 0), 0),
+        supportMessages: 0,
+      };
+    });
 
     return {
       stats: {
@@ -257,6 +631,10 @@ export const staysMock = {
         })),
       ),
       topProperties,
+      happeningToday,
+      properties,
+      performance,
+      settings,
     };
   },
 

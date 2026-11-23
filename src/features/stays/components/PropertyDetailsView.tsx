@@ -125,7 +125,7 @@ function Fact({ label, value, icon: Icon }: any) {
     return (
       <div className="min-w-0">
         <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</dt>
-        <dd className="mt-0.5 break-words text-sm font-medium leading-snug text-slate-800">
+        <dd className="mt-0.5 break-words text-base font-medium leading-snug text-slate-800">
           {value || "—"}
         </dd>
       </div>
@@ -143,7 +143,7 @@ function Fact({ label, value, icon: Icon }: any) {
         </span>
         <span className="min-w-0 break-words">{label}</span>
       </dt>
-      <dd className="ml-12 mt-1 break-words text-sm font-medium leading-snug text-slate-800">
+      <dd className="ml-12 mt-1 break-words text-base font-medium leading-snug text-slate-800">
         {value || "—"}
       </dd>
     </div>
@@ -463,7 +463,7 @@ export default function PropertyDetailsView({
   const child = settings.child || {};
   const nonRefundable = settings.nonRefundable || {};
   const weekly = settings.weekly || {};
-  const currency = property.currency || DEFAULT_CURRENCY;
+  const currency = DEFAULT_CURRENCY;
   const nightlyPrice = Number(property.pricePerNight) || Number(rooms[0]?.price) || 0;
   // Match the defaults the builder's "Rate plans" step displays until the
   // supplier edits them.

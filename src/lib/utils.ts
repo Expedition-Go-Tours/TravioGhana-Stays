@@ -27,9 +27,9 @@ export function cn(...inputs: ClassValue[]): string {
   return merge(clsx(inputs));
 }
 
-/** Money in the shared standard (`lib/money.ts`). Defaults to USD. */
-export function formatCurrency(amount: unknown, currency?: string): string {
-  return formatMoney(amount, currency);
+/** Money in the shared standard (`lib/money.ts`). Stays prices are always USD. */
+export function formatCurrency(amount: unknown, _currency?: string): string {
+  return formatMoney(amount, "USD");
 }
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {

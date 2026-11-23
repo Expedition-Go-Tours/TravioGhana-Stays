@@ -30,9 +30,9 @@ describe('utils', () => {
       expect(result).toBe('$1,234.56');
     });
 
-    it('should format EUR currency', () => {
+    it('formats every amount in USD, even when another currency is passed', () => {
       const result = formatCurrency(1234.56, 'EUR');
-      expect(result).toBe('€1,234.56');
+      expect(result).toBe('$1,234.56');
     });
 
     it('should handle zero', () => {

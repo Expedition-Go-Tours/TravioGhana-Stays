@@ -48,7 +48,7 @@ describe("StaysAnalyticsPage — experiences-parity analytics", () => {
     const money = (value, currency) =>
       formatCurrency(value, currency).replace(/\u00a0/g, " ");
     await screen.findAllByText((content) =>
-      String(content).replace(/\u00a0/g, " ") === money(summary.earnings.totalEarnings, summary.earnings.currency || "GHS"),
+      String(content).replace(/\u00a0/g, " ") === money(summary.earnings.totalEarnings, summary.earnings.currency || "USD"),
     );
     expect(screen.getAllByText(String(summary.bookings.total)).length).toBeGreaterThan(0);
     expect(
@@ -75,10 +75,10 @@ describe("StaysAnalyticsPage — experiences-parity analytics", () => {
       formatCurrency(value, currency).replace(/\u00a0/g, " ");
     expect(
       screen.getAllByText((content) =>
-        String(content).replace(/\u00a0/g, " ") === money(first.revenue, first.currency || "GHS"),
+        String(content).replace(/\u00a0/g, " ") === money(first.revenue, first.currency || "USD"),
       ).length,
     ).toBeGreaterThan(0);
-    expect(await screen.findByRole("button", { name: "View details" })).toBeTruthy();
+    expect(await screen.findAllByRole("button", { name: "View details" })).toHaveLength(3);
   });
 
   it("opens the property builder from a best seller's View details", async () => {
@@ -86,7 +86,7 @@ describe("StaysAnalyticsPage — experiences-parity analytics", () => {
     const user = userEvent.setup();
     renderPage();
 
-    const viewDetails = await screen.findByRole("button", { name: "View details" });
+    const [viewDetails] = await screen.findAllByRole("button", { name: "View details" });
     await user.click(viewDetails);
 
     expect(screen.getByTestId("location").textContent).toBe(

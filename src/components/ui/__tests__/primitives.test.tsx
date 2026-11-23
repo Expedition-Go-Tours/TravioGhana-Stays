@@ -173,11 +173,11 @@ describe('Field and inputs', () => {
       <Field label="Currency">
         <NativeSelect value="USD" onChange={onChange}>
           <option value="USD">USD</option>
-          <option value="GHS">GHS</option>
+          <option value="EUR">EUR</option>
         </NativeSelect>
       </Field>,
     );
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Currency' }), 'GHS');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Currency' }), 'EUR');
     expect(onChange).toHaveBeenCalled();
   });
 });

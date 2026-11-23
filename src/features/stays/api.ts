@@ -32,6 +32,8 @@ import type {
   CancellationRecord,
   CancellationSummary,
   DashboardSummary,
+  DashboardPerformanceComparison,
+  DashboardPerformancePeriod,
   MonthlyRevenue,
   Offer,
   OfferWithStatus,
@@ -68,42 +70,86 @@ export const STAYS_KEYS = {
 
 const requestConfig = { skipGlobalErrorHandler: true };
 
+/** Stays prices are USD-only; normalise any API currency code at the boundary. */
+function withUsd<T extends { currency?: unknown }>(value: T): T {
+  return { ...value, currency: "USD" } as T;
+}
+
+function usdDashboard(data: DashboardSummary): DashboardSummary {
+  const gross = Number(data.stats?.grossBookingValue) || 0;
+  const bookings = Array.isArray(data.currencies)
+    ? data.currencies.reduce((total, row) => total + (Number(row.bookings) || 0), 0)
+    : 0;
+  return {
+    ...data,
+    currency: "USD",
+    mixedCurrencies: false,
+    currencies: [{ currency: "USD", grossBookingValue: gross, bookings }],
+    recentBookings: (data.recentBookings || []).map(withUsd),
+  };
+}
+
+function usdAnalyticsSummary(data: AnalyticsSummary): AnalyticsSummary {
+  const totalEarnings = Number(data.earnings?.totalEarnings) || 0;
+  const bookings = Array.isArray(data.earnings?.currencies)
+    ? data.earnings.currencies.reduce((total, row) => total + (Number(row.bookings) || 0), 0)
+    : 0;
+  return {
+    ...data,
+    earnings: {
+      ...data.earnings,
+      currency: "USD",
+      mixedCurrencies: false,
+      currencies: [{ currency: "USD", totalEarnings, bookings }],
+    },
+  };
+}
+
+function withUsdRevenue(row: PropertyAnalytics): PropertyAnalytics {
+  return { ...row, currency: "USD", revenueByCurrency: { USD: Number(row.revenue) || 0 } };
+}
+
 /* ── Dashboard ───────────────────────────────────────────────────────────── */
-export async function fetchStaysDashboard(): Promise<DashboardSummary> {
-  if (staysUsesMockData) return staysMock.getDashboard();
-  const res = await api.get(`${BASE}/dashboard`, requestConfig);
-  return res.data?.data;
+export async function fetchStaysDashboard(
+  params: { period?: DashboardPerformancePeriod; compare?: DashboardPerformanceComparison } = {},
+): Promise<DashboardSummary> {
+  if (staysUsesMockData) return usdDashboard(await staysMock.getDashboard(params));
+  const res = await api.get(`${BASE}/dashboard`, { ...requestConfig, params });
+  const data = res.data?.data;
+  return data ? usdDashboard(data) : data;
 }
 
 /* ── Properties ──────────────────────────────────────────────────────────── */
 export async function listProperties(params: { status?: string; query?: string } = {}): Promise<PropertyListItem[]> {
-  if (staysUsesMockData) return staysMock.listProperties(params);
+  if (staysUsesMockData) return (await staysMock.listProperties(params)).map(withUsd);
   const res = await api.get(`${BASE}/properties`, { ...requestConfig, params });
-  return res.data?.data?.properties || [];
+  return (res.data?.data?.properties || []).map(withUsd);
 }
 
 export async function getProperty(id: string): Promise<Property> {
-  if (staysUsesMockData) return staysMock.getProperty(id);
+  if (staysUsesMockData) return withUsd(await staysMock.getProperty(id));
   const res = await api.get(`${BASE}/properties/${id}`, requestConfig);
-  return res.data?.data?.property;
+  return withUsd(res.data?.data?.property);
 }
 
 export async function createProperty(payload: Partial<Property>): Promise<Property> {
-  if (staysUsesMockData) return staysMock.createProperty(payload);
-  const res = await api.post(`${BASE}/properties`, payload, requestConfig);
-  return res.data?.data?.property;
+  const usdPayload = { ...payload, currency: "USD" as const };
+  if (staysUsesMockData) return withUsd(await staysMock.createProperty(usdPayload));
+  const res = await api.post(`${BASE}/properties`, usdPayload, requestConfig);
+  return withUsd(res.data?.data?.property);
 }
 
 export async function updateProperty(id: string, patch: Partial<Property>): Promise<Property> {
-  if (staysUsesMockData) return staysMock.updateProperty(id, patch);
-  const res = await api.patch(`${BASE}/properties/${id}`, patch, requestConfig);
-  return res.data?.data?.property;
+  const usdPatch = { ...patch, currency: "USD" as const };
+  if (staysUsesMockData) return withUsd(await staysMock.updateProperty(id, usdPatch));
+  const res = await api.patch(`${BASE}/properties/${id}`, usdPatch, requestConfig);
+  return withUsd(res.data?.data?.property);
 }
 
 export async function submitProperty(id: string): Promise<Property> {
-  if (staysUsesMockData) return staysMock.submitProperty(id);
+  if (staysUsesMockData) return withUsd(await staysMock.submitProperty(id));
   const res = await api.post(`${BASE}/properties/${id}/submit-for-review`, {}, requestConfig);
-  return res.data?.data?.property;
+  return withUsd(res.data?.data?.property);
 }
 
 export async function deleteProperty(id: string): Promise<unknown> {
@@ -155,17 +201,17 @@ export async function removePropertyPhoto(id: string, index: number): Promise<st
 
 /* ── Rate plans ─────────────────────────────────────────────────────────── */
 export async function saveRatePlan(propertyId: string, plan: Partial<RatePlan>): Promise<Property> {
-  if (staysUsesMockData) return staysMock.saveRatePlan(propertyId, plan);
+  if (staysUsesMockData) return withUsd(await staysMock.saveRatePlan(propertyId, plan));
   const res = plan.id
     ? await api.patch(`${BASE}/properties/${propertyId}/rate-plans/${plan.id}`, plan, requestConfig)
     : await api.post(`${BASE}/properties/${propertyId}/rate-plans`, plan, requestConfig);
-  return res.data?.data?.property;
+  return withUsd(res.data?.data?.property);
 }
 
 export async function deleteRatePlan(propertyId: string, planId: string): Promise<Property> {
-  if (staysUsesMockData) return staysMock.deleteRatePlan(propertyId, planId);
+  if (staysUsesMockData) return withUsd(await staysMock.deleteRatePlan(propertyId, planId));
   const res = await api.delete(`${BASE}/properties/${propertyId}/rate-plans/${planId}`, requestConfig);
-  return res.data?.data?.property;
+  return withUsd(res.data?.data?.property);
 }
 
 /* ── Availability ────────────────────────────────────────────────────────── */
@@ -173,12 +219,12 @@ export async function getAvailability(
   propertyId: string,
   { from, to }: { from?: string; to?: string } = {},
 ): Promise<Availability> {
-  if (staysUsesMockData) return staysMock.getAvailability(propertyId, { from, to });
+  if (staysUsesMockData) return withUsd(await staysMock.getAvailability(propertyId, { from, to }));
   const res = await api.get(`${BASE}/properties/${propertyId}/availability`, {
     ...requestConfig,
     params: { from, to },
   });
-  return res.data?.data;
+  return withUsd(res.data?.data);
 }
 
 export async function setAvailabilityCell(
@@ -205,15 +251,15 @@ export async function clearAvailabilityCell(
 
 /* ── Bookings ────────────────────────────────────────────────────────────── */
 export async function listStaysBookings(params: { status?: string } = {}): Promise<BookingListItem[]> {
-  if (staysUsesMockData) return staysMock.listBookings(params);
+  if (staysUsesMockData) return (await staysMock.listBookings(params)).map(withUsd);
   const res = await api.get(`${BASE}/bookings`, { ...requestConfig, params });
-  return res.data?.data?.bookings || [];
+  return (res.data?.data?.bookings || []).map(withUsd);
 }
 
 export async function updateBookingStatus(id: string, status: BookingStatus): Promise<Booking> {
-  if (staysUsesMockData) return staysMock.updateBookingStatus(id, status);
+  if (staysUsesMockData) return withUsd(await staysMock.updateBookingStatus(id, status));
   const res = await api.patch(`${BASE}/bookings/${id}/status`, { status }, requestConfig);
-  return res.data?.data?.booking;
+  return withUsd(res.data?.data?.booking);
 }
 
 /** A supplier-recorded walk-in or phone reservation. */
@@ -231,9 +277,9 @@ export type CreateStayBookingPayload = {
 };
 
 export async function createStayBooking(payload: CreateStayBookingPayload): Promise<Booking> {
-  if (staysUsesMockData) return staysMock.createBooking(payload);
+  if (staysUsesMockData) return withUsd(await staysMock.createBooking(payload));
   const res = await api.post(`${BASE}/bookings`, payload, requestConfig);
-  return res.data?.data?.booking;
+  return withUsd(res.data?.data?.booking);
 }
 
 /* ── Offers ──────────────────────────────────────────────────────────────── */
@@ -310,15 +356,19 @@ export async function fetchStaysAnalytics(params: Params = {}): Promise<unknown>
 }
 
 export async function fetchStaysAnalyticsSummary(): Promise<AnalyticsSummary | null> {
-  if (staysUsesMockData) return staysMock.getAnalyticsSummary();
+  if (staysUsesMockData) {
+    const data = await staysMock.getAnalyticsSummary();
+    return data ? usdAnalyticsSummary(data) : null;
+  }
   const res = await api.get(`${BASE}/analytics/summary`, requestConfig);
-  return res.data?.data || null;
+  const data = res.data?.data;
+  return data ? usdAnalyticsSummary(data) : null;
 }
 
 export async function fetchStaysPropertyAnalytics(): Promise<PropertyAnalytics[]> {
-  if (staysUsesMockData) return staysMock.getPropertyAnalytics();
+  if (staysUsesMockData) return (await staysMock.getPropertyAnalytics()).map(withUsdRevenue);
   const res = await api.get(`${BASE}/analytics/properties`, requestConfig);
-  return res.data?.data?.properties || [];
+  return (res.data?.data?.properties || []).map(withUsdRevenue);
 }
 
 export async function fetchStaysMonthlyRevenue(months = 12): Promise<MonthlyRevenue[]> {

@@ -62,7 +62,7 @@ describe("PropertiesListPage — preview navigation", () => {
     renderPage();
 
     expect(await screen.findByText("Akwaaba Coast Hotel")).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Edit property" }));
+    await user.click(screen.getAllByRole("button", { name: "Edit property" })[0]);
 
     await waitFor(() => {
       expect(screen.getByTestId("location").textContent).toBe("/stays/properties/build/p1");

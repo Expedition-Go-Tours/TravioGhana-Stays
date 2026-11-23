@@ -6,7 +6,7 @@
  *
  *   formatMoney(1250)          → "$1,250.00"
  *   formatMoney(1250, "EUR")   → "€1,250.00"
- *   formatMoney(1250, "GHS")   → "GHS 1,250.00"  (en-US has no cedi symbol)
+ *   formatMoney(1250, "EUR")   → "€1,250.00"
  *   formatMoney(12400, "USD", { compact: true }) → "$12.4K"
  *
  * USD is the default and the fallback. A record that carries its own currency

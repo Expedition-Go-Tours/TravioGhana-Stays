@@ -107,7 +107,7 @@ export const TabsTrigger = forwardRef<
       ref={ref}
       className={cn(
         "inline-flex shrink-0 items-center gap-2 whitespace-nowrap transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-bg",
+        "focus-visible:outline-none",
         "disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0",
         TRIGGER[variant],
         className,

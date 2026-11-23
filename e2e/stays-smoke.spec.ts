@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import { expectNoHorizontalOverflow, expectTapTargets, openNavIfCollapsed } from './helpers';
 
 /**
@@ -25,6 +26,8 @@ const STAYS_NAV = [
 
 const WORKSPACE_PAGES = [
   '/stays',
+  '/stays?tab=performance',
+  '/stays?tab=settings',
   '/stays/properties',
   '/stays/bookings',
   '/stays/availability',
@@ -89,6 +92,20 @@ test.describe('shell: tap targets', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expectTapTargets(page, 'header');
   });
+});
+
+test.describe('dashboard tabs: accessibility', () => {
+  for (const path of ['/stays', '/stays?tab=performance', '/stays?tab=settings']) {
+    test(`${path} passes axe checks`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .include('main')
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+    });
+  }
 });
 
 test.describe('dev API status page', () => {

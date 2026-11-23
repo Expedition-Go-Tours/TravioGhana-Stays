@@ -82,7 +82,6 @@ export default function AvailabilityCellPanel({
   onClose,
   onApply,
   onClear,
-  currency = DEFAULT_CURRENCY,
 }: any) {
   const effective = useMemo(
     () => ({
@@ -208,7 +207,7 @@ export default function AvailabilityCellPanel({
               <Section icon={Wallet} title="Inventory">
                 <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <ApplyRow
-                    label={`Nightly price (${currency}) for ${format(parsed, "EEE, MMM d")}`}
+                    label={`Nightly price (${DEFAULT_CURRENCY}) for ${format(parsed, "EEE, MMM d")}`}
                     value={priceDraft}
                     onChange={setPriceDraft}
                     onApply={applyPrice}

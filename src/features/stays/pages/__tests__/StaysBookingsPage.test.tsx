@@ -91,29 +91,30 @@ describe("StaysBookingsPage", () => {
     renderPage();
 
     expect(screen.getByRole("heading", { level: 1, name: "Bookings" })).toBeTruthy();
-    await waitFor(() => expect(rows()).toHaveLength(7));
-    expect(tab(/^All\s*7$/)).toHaveAttribute("aria-selected", "true");
-    expect(tab(/^New\s*1$/)).toBeTruthy();
-    expect(tab(/^Confirmed\s*2$/)).toBeTruthy();
+    await waitFor(() => expect(rows()).toHaveLength(11));
+    expect(tab(/^All\s*11$/)).toHaveAttribute("aria-selected", "true");
+    expect(tab(/^New\s*2$/)).toBeTruthy();
+    expect(tab(/^Confirmed\s*4$/)).toBeTruthy();
     expect(tab(/^Checked in\s*0$/)).toBeTruthy();
     expect(tab(/^Completed\s*0$/)).toBeTruthy();
-    // Three cancellations plus one no-show.
-    expect(tab(/^Cancelled\s*4$/)).toBeTruthy();
+    // Four cancellations plus one no-show.
+    expect(tab(/^Cancelled\s*5$/)).toBeTruthy();
 
     // Booked value excludes cancellations and no-shows.
     const summary = screen.getByText(/booked$/).closest("p") as HTMLElement;
-    expect(summary.textContent).toBe("7 bookings · $6,950.00 booked");
+    expect(summary.textContent).toBe("11 bookings · $9,850.00 booked");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("filters by tab and by search, and keeps both in the URL", async () => {
     const user = userEvent.setup();
     renderPage();
-    await waitFor(() => expect(rows()).toHaveLength(7));
+    await waitFor(() => expect(rows()).toHaveLength(11));
 
     await user.click(tab(/^New/));
-    await waitFor(() => expect(rows()).toHaveLength(1));
-    expect(rows()[0].textContent).toContain("Kwame Agyeman");
+    await waitFor(() => expect(rows()).toHaveLength(2));
+    expect(rows().map((row) => row.textContent).join(" ")).toContain("Kwame Agyeman");
+    expect(rows().map((row) => row.textContent).join(" ")).toContain("Esi Danso");
     expect(search().get("tab")).toBe("new");
 
     await user.click(tab(/^All/));
@@ -135,18 +136,18 @@ describe("StaysBookingsPage", () => {
   it("sorts by amount", async () => {
     const user = userEvent.setup();
     renderPage();
-    await waitFor(() => expect(rows()).toHaveLength(7));
+    await waitFor(() => expect(rows()).toHaveLength(11));
 
     await user.selectOptions(screen.getByRole("combobox", { name: "Sort bookings" }), "amount-desc");
     await waitFor(() => expect(rows()[0].textContent).toContain("Sarah Johnson"));
-    expect(rows()[6].textContent).toContain("Mark Addo");
+    expect(rows()[10].textContent).toContain("Nana Yaw Owusu");
     expect(search().get("sort")).toBe("amount-desc");
   });
 
   it("filters by check-in date from the filters sheet, with a live count and removable chips", async () => {
     const user = userEvent.setup();
     renderPage();
-    await waitFor(() => expect(rows()).toHaveLength(7));
+    await waitFor(() => expect(rows()).toHaveLength(11));
 
     await user.click(screen.getByRole("button", { name: "Filters" }));
     const sheet = screen.getByRole("dialog", { name: "Filter bookings" });
@@ -169,7 +170,7 @@ describe("StaysBookingsPage", () => {
     expect(search().get("to")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Clear all" }));
-    await waitFor(() => expect(rows()).toHaveLength(7));
+    await waitFor(() => expect(rows()).toHaveLength(11));
   });
 
   it("says when nothing matches and offers to clear the filters", async () => {
@@ -177,13 +178,13 @@ describe("StaysBookingsPage", () => {
     renderPage("/stays/bookings?q=nobody-by-this-name");
     expect(await screen.findByText("No bookings match")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
-    await waitFor(() => expect(rows()).toHaveLength(7));
+    await waitFor(() => expect(rows()).toHaveLength(11));
   });
 
   it("opens a booking from its row and confirms it", async () => {
     const user = userEvent.setup();
     renderPage();
-    await waitFor(() => expect(rows()).toHaveLength(7));
+    await waitFor(() => expect(rows()).toHaveLength(11));
 
     await user.click(row("TG-S-20494", "Kwame Agyeman"));
     const panel = screen.getByRole("dialog", { name: "Kwame Agyeman" });
@@ -250,7 +251,7 @@ describe("StaysBookingsPage", () => {
   it("creates a booking after checking the form, then opens it", async () => {
     const user = userEvent.setup();
     renderPage();
-    await waitFor(() => expect(rows()).toHaveLength(7));
+    await waitFor(() => expect(rows()).toHaveLength(11));
 
     await user.click(screen.getByRole("button", { name: "Create booking" }));
     const dialog = screen.getByRole("dialog", { name: "Create booking" });
@@ -274,18 +275,18 @@ describe("StaysBookingsPage", () => {
     expect(toast.success).toHaveBeenCalledWith("Booking created for Ama Mensah");
     expect(search().get("bookingId")).toMatch(/^TG-S-\d{5}$/);
     // The open panel hides the page from assistive tech, hence `hidden`.
-    await waitFor(() => expect(screen.getByRole("tab", { name: /^All\s*8$/, hidden: true })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("tab", { name: /^All\s*12$/, hidden: true })).toBeTruthy());
   });
 
   it("paginates once the list passes 25 bookings", async () => {
-    seedExtraBookings(27); // 7 seeded + 27 = 34 → 2 pages
+    seedExtraBookings(27); // 11 seeded + 27 = 38 → 2 pages
     const user = userEvent.setup();
     renderPage();
 
     await waitFor(() => expect(rows()).toHaveLength(25));
-    expect(screen.getByText(/booked$/).closest("p")?.textContent).toMatch(/^34 bookings/);
+    expect(screen.getByText(/booked$/).closest("p")?.textContent).toMatch(/^38 bookings/);
     await user.click(screen.getByRole("button", { name: "Next page" }));
-    await waitFor(() => expect(rows()).toHaveLength(9));
+    await waitFor(() => expect(rows()).toHaveLength(13));
 
     // A new filter goes back to page 1.
     await user.click(tab(/^Confirmed/));
@@ -302,6 +303,6 @@ describe("StaysBookingsPage", () => {
     expect(screen.queryByText("No bookings yet")).toBeNull();
 
     await user.click(within(alert).getByRole("button", { name: /Try again/ }));
-    await waitFor(() => expect(rows()).toHaveLength(7));
+    await waitFor(() => expect(rows()).toHaveLength(11));
   });
 });

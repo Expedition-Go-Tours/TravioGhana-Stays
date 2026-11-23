@@ -64,7 +64,7 @@ function PayoutsTab() {
           <div className="w-9 h-9 rounded-lg bg-emerald-50 border border-emerald-200/60 flex items-center justify-center mb-2.5">
             <Banknote size={16} className="text-emerald-600" />
           </div>
-          <p className="text-lg font-bold text-slate-800">
+          <p className="text-2xl font-bold text-slate-800">
             {formatCurrency(Number(payoutsSummary.totalEarned) || 0, payoutsSummary.currency || "USD")}
           </p>
           <p className="text-[11px] font-medium text-slate-500 mt-0.5">Total Paid Out</p>
@@ -73,7 +73,7 @@ function PayoutsTab() {
           <div className="w-9 h-9 rounded-lg bg-emerald-50 border border-emerald-200/60 flex items-center justify-center mb-2.5">
             <CreditCard size={16} className="text-emerald-600" />
           </div>
-          <p className="text-lg font-bold text-slate-800">{methods.length}</p>
+          <p className="text-2xl font-bold text-slate-800">{methods.length}</p>
           <p className="text-[11px] font-medium text-slate-500 mt-0.5">Payout Methods</p>
         </div>
       </div>
@@ -141,7 +141,7 @@ function PayoutsTab() {
                           : method.type === "MOBILE_MONEY"
                             ? method.mobileProvider || "Mobile Money"
                             : "PayPal"}
-                        <span className="font-normal text-slate-400"> · {method.currency || "USD"}</span>
+                        <span className="font-normal text-slate-400"> · USD</span>
                         {method.isDefault && <span className="ml-2 text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md font-medium">Default</span>}
                       </p>
                       <p className="text-xs text-slate-500 mt-0.5 truncate">
@@ -206,7 +206,7 @@ function PayoutsTab() {
                   </div>
                   <div className="text-right flex items-center gap-3">
                     <div>
-                      <p className="text-sm font-bold text-slate-800">
+                      <p className="text-base font-bold text-slate-800">
                         {formatCurrency(Number(p.amount) || 0, p.currency || "USD")}
                       </p>
                       {p.date && (

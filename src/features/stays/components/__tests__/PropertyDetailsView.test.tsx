@@ -102,7 +102,7 @@ const property = {
   calendarWindow: "365 days",
   calendarImport: { mode: "import", url: "" },
   longStays: "Yes",
-  currency: "GHS",
+  currency: "USD",
   pricePerNight: "750",
 };
 
@@ -158,7 +158,7 @@ describe("PropertyDetailsView", () => {
     expect(overview.getByText("4")).toBeTruthy();
     expect(overview.getByText("2")).toBeTruthy();
     expect(overview.getByText("80 square metres")).toBeTruthy();
-    expect(overview.getByText("GHS 750.00")).toBeTruthy();
+    expect(overview.getByText("$750.00")).toBeTruthy();
   });
 
   it("places listing and booking settings directly after About this property", () => {

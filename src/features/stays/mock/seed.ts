@@ -101,6 +101,113 @@ function dayOffsetDate(days) {
 /** The prototype's default rate plan for a room (`.defaultPlan`). */
 export const defaultRatePlan: (room: RoomType) => RatePlan = defaultPlanForRoom;
 
+/**
+ * A compact second/third listing for the operations homepage. It carries the
+ * same shape as the reference property but only one room and rate plan, so the
+ * seed stays readable while every property-scoped page still has data.
+ */
+function extraProperty(input: {
+  id: string;
+  name: string;
+  type: string;
+  city: string;
+  region: string;
+  address: string;
+  status: Property["status"];
+  operating: string;
+  price: number;
+  shortDescription: string;
+  minStay?: number;
+}): Property {
+  const room: RoomType = {
+    ...akwaabaRoom,
+    id: `${input.id}-room`,
+    kind: "Standard Room",
+    name: "Garden View Room",
+    count: 4,
+    price: input.price,
+    weekend: Math.round(input.price * 1.12),
+  };
+  const plan = defaultPlanForRoom(room);
+  const ratePlans: RatePlan[] = [{ ...plan, minStay: input.minStay ?? plan.minStay }];
+  return {
+    id: input.id,
+    name: input.name,
+    type: input.type,
+    bookingType: "Individual rooms",
+    operating: input.operating,
+    region: input.region,
+    country: "Ghana",
+    city: input.city,
+    address: input.address,
+    apartment: "",
+    postcode: "",
+    lat: null,
+    lng: null,
+    mapAddress: `${input.address}, ${input.region}, Ghana`,
+    gps: "",
+    landmark: "",
+    shortDescription: input.shortDescription,
+    description: input.shortDescription,
+    status: input.status,
+    step: 10,
+    facilities: ["Air conditioning", "Free WiFi", "Breakfast"],
+    photos: [],
+    rooms: [room],
+    ratePlans,
+    start: "2026-10-01",
+    advance: "12 months",
+    listingScope: "One property",
+    sameAddress: null,
+    propertyCount: null,
+    otherListings: [],
+    noOtherListings: false,
+    channelManager: { connected: false, name: "" },
+    services: { breakfast: "Yes", parking: "Yes, free" },
+    languages: ["English", "Twi"],
+    hostProfile: {
+      property: { included: false, about: input.shortDescription },
+      host: { included: false, name: "", about: "" },
+      neighbourhood: { included: false, about: "" },
+      none: false,
+    },
+    sleeping: {
+      bedrooms: [{ id: `${input.id}-bed-1`, name: "Bedroom 1", doubleBeds: 1, singleBeds: 0 }],
+      livingRoomBeds: 0,
+      otherSpacesBeds: 0,
+    },
+    maxGuests: 2,
+    excludeInfants: false,
+    bathrooms: 1,
+    children: "Welcome",
+    cots: "Not available",
+    size: "",
+    sizeUnit: "square metres",
+    bookingPreference: "instant",
+    pricePerNight: input.price.toFixed(2),
+    currency: "USD",
+    promotion: false,
+    startMode: "asap",
+    calendarWindow: "365 days",
+    calendarImport: { mode: "import", url: "" },
+    longStays: null,
+    payments: { mode: "Online when they book" },
+    invoicing: { name: input.name, legalName: `${input.name} Ltd`, sameAddress: true, address: "" },
+    agreement: {
+      certifyBusiness: true,
+      certifyTerms: true,
+      openMonths: "18 months",
+      notReadyReason: "",
+    },
+    checkin: "14:00",
+    checkinEnd: "18:00",
+    checkoutStart: "08:00",
+    checkout: "11:00",
+    cancellation: "Flexible",
+  };
+}
+
+
 const akwaabaRoom: RoomType = {
   id: "r1",
   kind: "Deluxe Room",
@@ -202,6 +309,31 @@ export const seedStays: StaysMockDb = {
       checkout: "11:00",
       cancellation: "Flexible",
     },
+    extraProperty({
+      id: "p2",
+      name: "Kumasi Gardens Lodge",
+      type: "Lodge",
+      city: "Kumasi",
+      region: "Ashanti",
+      address: "Nhyiaeso, Kumasi",
+      status: "Paused",
+      operating: "Temporarily closed",
+      price: 480,
+      shortDescription: "A quiet garden lodge a short drive from Kumasi's cultural centre.",
+      minStay: 7,
+    }),
+    extraProperty({
+      id: "p3",
+      name: "Cape Coast Heritage Inn",
+      type: "Guest house",
+      city: "Cape Coast",
+      region: "Central",
+      address: "Pedu, Cape Coast",
+      status: "Under review",
+      operating: "Awaiting approval",
+      price: 390,
+      shortDescription: "A restored heritage guest house near Cape Coast Castle.",
+    }),
   ],
   bookings: [
     {
@@ -300,6 +432,62 @@ export const seedStays: StaysMockDb = {
       refundAmount: 0,
       countsTowardRate: false,
     },
+    // Live operations for the homepage: one guest in house today, one
+    // departure today, one new reservation made today, and one cancellation
+    // recorded today. Dates stay relative so the page never looks stale.
+    {
+      id: "TG-S-20500",
+      guest: "Abena Mensah",
+      propertyId: "p1",
+      room: "Deluxe King Room",
+      from: dayOffsetDate(0),
+      to: dayOffsetDate(3),
+      amount: 1200,
+      status: "Confirmed",
+      guests: 2,
+      createdAt: dayTimeISO(0, 8, 15),
+    },
+    {
+      id: "TG-S-20501",
+      guest: "Kojo Antwi",
+      propertyId: "p2",
+      room: "Garden View Room",
+      from: dayOffsetDate(-1),
+      to: dayOffsetDate(0),
+      amount: 900,
+      status: "Confirmed",
+      guests: 1,
+      createdAt: dayTimeISO(-3, 11, 0),
+    },
+    {
+      id: "TG-S-20502",
+      guest: "Esi Danso",
+      propertyId: "p1",
+      room: "Deluxe King Room",
+      from: dayOffsetDate(1),
+      to: dayOffsetDate(3),
+      amount: 800,
+      status: "New",
+      guests: 2,
+      createdAt: dayTimeISO(0, 10, 40),
+    },
+    {
+      id: "TG-S-20503",
+      guest: "Nana Yaw Owusu",
+      propertyId: "p1",
+      room: "Deluxe King Room",
+      from: dayOffsetDate(6),
+      to: dayOffsetDate(8),
+      amount: 600,
+      status: "Cancelled",
+      guests: 1,
+      createdAt: dayTimeISO(-2, 9, 0),
+      cancelledAt: dayTimeISO(0, 12, 10),
+      reason: "Guest requested cancellation",
+      note: "Travel plans changed — full refund issued.",
+      refundAmount: 600,
+      countsTowardRate: false,
+    },
   ],
   // Chat threads for the Customers page — one per guest, oldest message first
   // (the API returns the latest first for previews and the thread in order).
@@ -307,6 +495,7 @@ export const seedStays: StaysMockDb = {
     {
       id: "conv-1",
       type: "SUPPLIER_CUSTOMER",
+      propertyId: "p1",
       updatedAt: dayTimeISO(0, 9, 12),
       unreadCount: 1,
       participants: [
@@ -363,6 +552,7 @@ export const seedStays: StaysMockDb = {
     {
       id: "conv-2",
       type: "SUPPLIER_CUSTOMER",
+      propertyId: "p1",
       updatedAt: dayTimeISO(-1, 8, 42),
       unreadCount: 0,
       participants: [
@@ -409,6 +599,7 @@ export const seedStays: StaysMockDb = {
     {
       id: "conv-3",
       type: "SUPPLIER_CUSTOMER",
+      propertyId: "p1",
       updatedAt: dayTimeISO(-2, 14, 6),
       unreadCount: 2,
       participants: [
@@ -452,10 +643,63 @@ export const seedStays: StaysMockDb = {
         },
       ],
     },
+    {
+      id: "conv-4",
+      type: "SUPPLIER_CUSTOMER",
+      propertyId: "p2",
+      updatedAt: dayTimeISO(0, 7, 48),
+      unreadCount: 1,
+      participants: [
+        {
+          userId: "stays-supplier",
+          user: { id: "stays-supplier", name: "Akwaaba Coast Hotel", roles: ["supplier"] },
+          lastReadAt: dayTimeISO(-1, 19, 0),
+        },
+        {
+          userId: "guest-4",
+          user: {
+            id: "guest-4",
+            name: "Kojo Antwi",
+            email: "kojo.antwi@example.com",
+            phone: "+233 24 000 0004",
+            roles: ["customer"],
+          },
+          lastReadAt: dayTimeISO(0, 8, 10),
+        },
+      ],
+      messages: [
+        {
+          id: "msg-4-1",
+          conversationId: "conv-4",
+          senderId: "guest-4",
+          sender: { id: "guest-4", name: "Kojo Antwi" },
+          content: "I'm checking out today — can I leave my bag until noon?",
+          attachmentUrl: null,
+          attachmentType: null,
+          createdAt: dayTimeISO(0, 7, 48),
+        },
+      ],
+    },
   ],
   reviews: [
-    { id: "v1", guest: "Ama B.", rating: 5, text: "Helpful staff and a lovely breakfast.", reply: "" },
-    { id: "v2", guest: "David R.", rating: 4, text: "Comfortable room and a convenient location.", reply: "" },
+    {
+      id: "v1",
+      propertyId: "p1",
+      guest: "Ama B.",
+      rating: 5,
+      text: "Helpful staff and a lovely breakfast.",
+      reply: "",
+      createdAt: dayTimeISO(0, 9, 40),
+    },
+    {
+      id: "v2",
+      propertyId: "p1",
+      guest: "David R.",
+      rating: 4,
+      text: "Comfortable room and a convenient location.",
+      reply: "",
+      createdAt: dayTimeISO(0, 8, 15),
+    },
   ],
   offers: [
     {

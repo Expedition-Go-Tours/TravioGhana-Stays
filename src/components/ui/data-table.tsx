@@ -46,6 +46,8 @@ export type DataTableProps<T> = {
   renderCard?: (row: T) => ReactNode;
   /** Force a layout regardless of screen width. */
   layout?: "auto" | "table" | "cards";
+  /** Tighter table rows for the operations homepage's "compact" view. */
+  density?: "comfortable" | "compact";
   /** Under the rows — usually <Pagination>. */
   footer?: ReactNode;
   className?: string;
@@ -95,6 +97,7 @@ export function DataTable<T>({
   initialSort,
   renderCard,
   layout = "auto",
+  density = "comfortable",
   footer,
   className,
 }: DataTableProps<T>) {
@@ -197,7 +200,8 @@ export function DataTable<T>({
                     scope="col"
                     aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : undefined}
                     className={cn(
-                      "whitespace-nowrap px-4 py-3 text-overline font-semibold uppercase text-muted",
+                      "text-overline font-semibold uppercase text-muted",
+                      density === "compact" ? "px-2 py-2" : "px-3 py-3",
                       align,
                       column.className,
                     )}
@@ -250,7 +254,12 @@ export function DataTable<T>({
                   {columns.map((column) => (
                     <td
                       key={column.key}
-                      className={cn("px-4 py-3.5 align-middle text-sm text-body", ALIGN[column.align ?? "left"], column.className)}
+                      className={cn(
+                        "align-middle text-sm text-body",
+                        density === "compact" ? "px-2 py-2.5" : "px-3 py-3.5",
+                        ALIGN[column.align ?? "left"],
+                        column.className,
+                      )}
                     >
                       {cellOf(row, column)}
                     </td>

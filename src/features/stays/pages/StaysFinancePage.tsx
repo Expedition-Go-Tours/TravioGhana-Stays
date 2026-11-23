@@ -964,13 +964,13 @@ export default function StaysFinancePage() {
                               )}
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-right text-sm text-gray-500 tabular-nums">
+                          <td className="py-3 px-4 text-right text-base text-gray-500 tabular-nums">
                             {e.supplierPayout ? formatCurrency(e.supplierPayout, e.currency) : "—"}
                           </td>
-                          <td className="py-3 px-4 text-right text-sm text-gray-500 tabular-nums">
+                          <td className="py-3 px-4 text-right text-base text-gray-500 tabular-nums">
                             {formatCurrency(e.commissionAmount, e.currency)}
                           </td>
-                          <td className="py-3 px-4 text-right text-sm font-bold text-gray-900 tabular-nums">
+                          <td className="py-3 px-4 text-right text-base font-bold text-gray-900 tabular-nums">
                             {formatCurrency(e.grossAmount, e.currency)}
                           </td>
                         </motion.tr>
@@ -1015,7 +1015,7 @@ export default function StaysFinancePage() {
                       key={total.currency}
                       className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200"
                     >
-                      {total.currency} {formatCurrency(total.amount, total.currency)} open
+                      {formatCurrency(total.amount)} open
                     </span>
                   ))}
                 </div>
@@ -1062,7 +1062,7 @@ export default function StaysFinancePage() {
                             <td className="py-3 px-4">
                               <span className="font-mono text-xs font-medium text-emerald-600">{charge.bookingNumber}</span>
                             </td>
-                            <td className="py-3 px-4 text-right text-sm font-semibold text-red-600 tabular-nums whitespace-nowrap">
+                            <td className="py-3 px-4 text-right text-base font-semibold text-red-600 tabular-nums whitespace-nowrap">
                               -{formatCurrency(charge.amount, charge.currency)}
                             </td>
                             <td className="py-3 px-4 text-sm text-gray-700 max-w-[240px]">
@@ -1150,7 +1150,7 @@ export default function StaysFinancePage() {
                           </td>
                           <td className="py-3 px-4 text-sm text-gray-700">{r.cycleLabel}</td>
                           <td className="py-3 px-4 text-right text-sm text-gray-700 tabular-nums">{r.bookingCount}</td>
-                          <td className="py-3 px-4 text-right text-sm font-semibold text-gray-900 tabular-nums">{formatCurrency(r.amount, r.currency)}</td>
+                          <td className="py-3 px-4 text-right text-base font-semibold text-gray-900 tabular-nums">{formatCurrency(r.amount, r.currency)}</td>
                           <td className="py-3 px-4 text-center"><StatusBadge domain="payout" status={r.status} /></td>
                           <td className="py-3 px-4 text-sm text-gray-500">{formatDate(r.completedAt || r.createdAt)}</td>
                           <td className="py-3 px-4 text-right">
@@ -1431,7 +1431,6 @@ export default function StaysFinancePage() {
                                 <div className="flex flex-wrap items-center gap-2">
                                   <p className="text-sm font-semibold text-gray-900 truncate">
                                     {payoutTypeLabel(method.type)}
-                                    <span className="font-normal text-gray-400"> · {method.currency || "USD"}</span>
                                   </p>
                                   {method.isDefault && (
                                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -1498,7 +1497,7 @@ export default function StaysFinancePage() {
                                   {method.type === "PAYPAL" && (
                                     <DetailRow label="PayPal Email" value={method.paypalEmail} />
                                   )}
-                                  <DetailRow label="Currency" value={method.currency || "USD"} />
+                                  <DetailRow label="Currency" value="USD" />
                                   {method.createdAt && (
                                     <DetailRow label="Added" value={formatDate(method.createdAt)} />
                                   )}

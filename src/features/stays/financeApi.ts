@@ -12,7 +12,6 @@ import api from "@/lib/axios";
 import { formatCurrency } from "@/lib/utils";
 import { staysMock } from "./mock/store";
 import { staysUsesMockData } from "./api";
-import { DEFAULT_CURRENCY } from "@/lib/money";
 
 const BASE = "/stays/supplier";
 const requestConfig = { skipGlobalErrorHandler: true };
@@ -20,7 +19,30 @@ const requestConfig = { skipGlobalErrorHandler: true };
 export async function fetchFinanceSummary() {
   if (staysUsesMockData) return staysMock.getFinanceSummary();
   const response = await api.get(`${BASE}/finance/summary`, requestConfig);
-  return response.data?.data || {};
+  const data = response.data?.data || {};
+  const available = data.availableBalance || {};
+  const pending = data.pendingClearance || {};
+  const review = data.inReview || {};
+  const paid = data.paidOut || {};
+  return {
+    ...data,
+    currency: "USD",
+    mixedCurrencies: false,
+    availableBalance: { ...available, currency: "USD" },
+    pendingClearance: { ...pending, currency: "USD" },
+    inReview: { ...review, currency: "USD" },
+    paidOut: { ...paid, currency: "USD" },
+    // Stays is USD-only; collapse the API's currency split to one row.
+    currencies: [
+      {
+        currency: "USD",
+        availableBalance: { amount: Number(available.amount) || 0, bookingCount: available.bookingCount || 0 },
+        pendingClearance: { amount: Number(pending.amount) || 0, bookingCount: pending.bookingCount || 0 },
+        inReview: { total: Number(review.total) || 0, count: review.count || 0, requestCount: review.requestCount || 0 },
+        paidOut: { total: Number(paid.total) || 0, count: paid.count || 0 },
+      },
+    ],
+  };
 }
 
 export async function fetchFinanceEarnings(params = {}) {
@@ -39,7 +61,7 @@ export async function fetchFinanceEarnings(params = {}) {
       supplierPayout: Number(item.supplierPayout) || 0,
       commissionAmount: Number(item.platformCommission) || 0,
       commissionRate: Number(item.commissionRate) || 0,
-      currency: item.currency || DEFAULT_CURRENCY,
+      currency: "USD",
       payoutStatus: item.payoutStatus,
       status: item.status,
       property: item.property?.name || "—",
@@ -62,7 +84,7 @@ export async function fetchPayoutRequests(params = {}) {
       id: request.id,
       requestNumber: request.requestNumber,
       amount: Number(request.amount) || 0,
-      currency: request.currency || DEFAULT_CURRENCY,
+      currency: "USD",
       bookingCount: request.bookingCount || 0,
       status: request.status,
       cycleLabel: request.cycleLabel,
@@ -110,7 +132,7 @@ export async function getFinanceCharges() {
   const charges = (payload.charges || []).map((charge) => ({
     id: charge.id,
     amount: Number(charge.amount) || 0,
-    currency: charge.currency || DEFAULT_CURRENCY,
+    currency: "USD",
     reason: charge.reason || "",
     status: charge.status,
     notes: charge.notes || "",
@@ -121,10 +143,11 @@ export async function getFinanceCharges() {
     payoutRequestId: charge.payoutRequestId,
     payoutRequestNumber: charge.payoutRequestNumber || null,
   }));
-  const openTotals = Object.entries(payload.openTotals || {}).map(([currency, amount]) => ({
-    currency,
-    amount: Number(amount) || 0,
-  }));
+  const openTotal = Object.values(payload.openTotals || {}).reduce(
+    (total, amount) => total + (Number(amount) || 0),
+    0,
+  );
+  const openTotals = openTotal ? [{ currency: "USD", amount: openTotal }] : [];
   return { charges, openTotals };
 }
 
@@ -147,7 +170,7 @@ export async function fetchFinanceDisputes(params = {}) {
       propertyTitle: dispute.booking?.property?.name || "—",
       travelDate: dispute.booking?.travelDate,
       grossAmount: Number(dispute.booking?.grossAmount) || 0,
-      currency: dispute.booking?.currency || DEFAULT_CURRENCY,
+      currency: "USD",
     })),
     pagination: payload.pagination || null,
   };
@@ -169,7 +192,7 @@ export async function fetchPayoutMethods() {
   if (staysUsesMockData) return staysMock.listPayoutMethods();
   const response = await api.get(`${BASE}/payout-methods/me`, requestConfig);
   const payload = response.data?.data || {};
-  return payload.methods || [];
+  return (payload.methods || []).map((method) => ({ ...method, currency: "USD" }));
 }
 
 export async function createPayoutMethod(data) {
@@ -208,7 +231,7 @@ export function mapClaim(claim) {
     booking: {
       bookingNumber: booking.bookingNumber || "",
       total: Number(booking.grossAmount) || 0,
-      currency: booking.currency || DEFAULT_CURRENCY,
+      currency: "USD",
       customerName: booking.customer?.name || "Guest",
       customerEmail: booking.customer?.email || "",
       propertyTitle: booking.property?.name || "",

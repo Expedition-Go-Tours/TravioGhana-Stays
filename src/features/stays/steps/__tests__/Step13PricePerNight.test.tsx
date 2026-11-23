@@ -14,7 +14,7 @@ function renderStep({ overrides = {}, saving = false } = {}) {
   const onSave = vi.fn().mockResolvedValue(undefined);
   render(
     <Step13PricePerNight
-      property={{ pricePerNight: "29.00", currency: "GHS", promotion: true, ...overrides }}
+      property={{ pricePerNight: "29.00", currency: "USD", promotion: true, ...overrides }}
       patch={patch}
       onBack={onBack}
       onNext={onNext}
@@ -30,26 +30,26 @@ describe("Step13PricePerNight — price per night", () => {
     renderStep();
 
     expect(screen.getByText("Price per night")).toBeTruthy();
-    expect(screen.getByText("Median: GHS 402.00")).toBeTruthy();
-    expect(screen.getByText("GHS 120.00")).toBeTruthy();
-    expect(screen.getByText("GHS 673.00")).toBeTruthy();
+    expect(screen.getByText("Median: $402.00")).toBeTruthy();
+    expect(screen.getByText("$120.00")).toBeTruthy();
+    expect(screen.getByText("$673.00")).toBeTruthy();
 
     expect(screen.getByLabelText("Price guests pay")).toBeTruthy();
     expect(screen.getByDisplayValue("29.00")).toBeTruthy();
     expect(screen.getByText(/Including taxes, commission and charges/)).toBeTruthy();
-    expect(screen.getByText("GHS 24.65")).toBeTruthy();
-    expect(screen.getByText("Currency you receive payments in")).toBeTruthy();
-    expect(screen.getAllByText("GHS").length).toBeGreaterThan(0);
+    expect(screen.getByText("$24.65")).toBeTruthy();
+    expect(screen.getByText("All prices are shown and charged in USD.")).toBeTruthy();
+    expect(screen.getAllByText("USD").length).toBeGreaterThan(0);
     expect(screen.getByText(/Your earnings \(including taxes\)/)).toBeTruthy();
 
     expect(
       screen.getByRole("checkbox", { name: /Get guests' attention with a 20% discount/ }).checked,
     ).toBe(true);
-    expect(screen.getByText(/GHS 23\.20 per night/)).toBeTruthy();
+    expect(screen.getByText(/\$23\.20 per night/)).toBeTruthy();
   });
 
-  it("formats the whole step in the chosen payout currency", () => {
-    renderStep({ overrides: { currency: "USD" } });
+  it("keeps USD even when a stored property currency is different", () => {
+    renderStep({ overrides: { currency: "EUR" } });
 
     expect(screen.getByText("Median: $402.00")).toBeTruthy();
     expect(screen.getByText("$24.65")).toBeTruthy();
@@ -93,9 +93,10 @@ describe("Step13PricePerNight — price per night", () => {
 });
 
 describe("Step13PricePerNight — currency default", () => {
-  it("defaults to USD when the property has no currency yet, and keeps the picker", () => {
+  it("uses USD when the property has no currency yet, without a currency picker", () => {
     renderStep({ overrides: { currency: undefined } });
     expect(screen.getByText("Median: $402.00")).toBeTruthy();
-    expect(screen.getByRole("combobox")).toHaveTextContent("USD");
+    expect(screen.getByText("All prices are shown and charged in USD.")).toBeTruthy();
+    expect(screen.queryByRole("combobox")).toBeNull();
   });
 });

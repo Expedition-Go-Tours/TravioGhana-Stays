@@ -9,7 +9,7 @@ describe('formatMoney', () => {
     expect(formatMoney(1250)).toBe('$1,250.00');
     expect(formatMoney(1250, 'EUR')).toBe('€1,250.00');
     expect(formatMoney(1250, 'GBP')).toBe('£1,250.00');
-    expect(text(formatMoney(1250, 'GHS'))).toBe('GHS 1,250.00');
+    expect(text(formatMoney(1250, 'EUR'))).toBe('€1,250.00');
     expect(formatMoney(-1234.56)).toBe('-$1,234.56');
   });
 
@@ -20,7 +20,7 @@ describe('formatMoney', () => {
   it('has a compact form for KPI tiles', () => {
     expect(formatMoney(12400, 'USD', { compact: true })).toBe('$12.4K');
     expect(formatMoney(1_250_000, 'USD', { compact: true })).toBe('$1.3M');
-    expect(text(formatMoney(7650, 'GHS', { compact: true }))).toBe('GHS 7.7K');
+    expect(text(formatMoney(7650, 'EUR', { compact: true }))).toBe('€7.7K');
   });
 
   it('defaults to USD and falls back to it for a missing or invalid code', () => {
@@ -42,7 +42,7 @@ describe('formatMoney', () => {
 
 describe('helpers', () => {
   it('normalizeCurrency', () => {
-    expect(normalizeCurrency(' ghs ')).toBe('GHS');
+    expect(normalizeCurrency(' eur ')).toBe('EUR');
     expect(normalizeCurrency(42)).toBe('USD');
   });
 
@@ -51,8 +51,8 @@ describe('helpers', () => {
     expect(toAmount({})).toBe(0);
   });
 
-  it('formatCurrency delegates to the shared standard', () => {
+  it('formatCurrency always renders Stays prices in USD', () => {
     expect(formatCurrency(1530)).toBe('$1,530.00');
-    expect(formatCurrency(1530, 'EUR')).toBe(formatMoney(1530, 'EUR'));
+    expect(formatCurrency(1530, 'EUR')).toBe('$1,530.00');
   });
 });

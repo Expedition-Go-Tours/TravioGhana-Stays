@@ -21,7 +21,6 @@ import CountryCombobox from "./StaysCountryCombobox";
 import { validatePayoutForm } from "../../utils/validatePayoutMethod";
 import {
   MOBILE_MONEY_PROVIDERS,
-  PAYOUT_CURRENCIES,
   PAYOUT_METHOD_TYPES,
   buildPayoutMethodPayload,
   describePayoutRoute,
@@ -113,12 +112,11 @@ function PayoutMethodFormSheetBody({
   onClose,
   onSubmit,
   defaultCountry = "GH",
-  defaultCurrency,
   title = "Add payout method",
   submitLabel = "Save payout method",
 }: any) {
   const uid = useId();
-  const [form, setForm] = useState(() => initialPayoutMethodForm({ countryCode: defaultCountry, currency: defaultCurrency }));
+  const [form, setForm] = useState(() => initialPayoutMethodForm({ countryCode: defaultCountry }));
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
@@ -464,28 +462,6 @@ function PayoutMethodFormSheetBody({
                     )}
                   </Field>
                 )}
-
-                <Field id={`${uid}-currency`} label="Currency" error={errors.currency} help="What you'd like to be paid in.">
-                  {(props) => (
-                    <Select value={form.currency} onValueChange={(value) => set("currency", value)}>
-                      <SelectTrigger
-                        id={props.id}
-                        aria-invalid={Boolean(errors.currency) || undefined}
-                        aria-describedby={props.describedBy}
-                        className={selectClass(Boolean(errors.currency))}
-                      >
-                        <SelectValue placeholder="Choose a currency" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PAYOUT_CURRENCIES.map((currency) => (
-                          <SelectItem key={currency.code} value={currency.code}>
-                            {currency.code} — {currency.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </Field>
               </fieldset>
 
               {/* 3 — what happens next */}

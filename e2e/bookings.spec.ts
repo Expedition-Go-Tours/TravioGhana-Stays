@@ -11,7 +11,7 @@ const width = (page: Page) => page.viewportSize()?.width ?? 1440;
 async function ready(page: Page, path = '/stays/bookings') {
   await page.goto(path);
   await expect(page.getByRole('heading', { level: 1, name: 'Bookings' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: /^All\s*7$/ })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^All\s*11$/ })).toBeVisible();
 }
 
 const bookingRow = (page: Page) => page.getByRole(width(page) >= 768 ? 'row' : 'listitem', {
@@ -43,8 +43,8 @@ test('confirming a booking updates its status and the New tab count', async ({ p
   await panel.getByRole('button', { name: 'Confirm booking' }).click();
   await expect(panel.getByRole('button', { name: 'Check in guest' })).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('tab', { name: /^New\s*0$/ })).toBeVisible();
-  await expect(page.getByRole('tab', { name: /^Confirmed\s*3$/ })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^New\s*1$/ })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^Confirmed\s*5$/ })).toBeVisible();
 });
 
 test('filters apply from the sheet and show as removable chips', async ({ page }) => {

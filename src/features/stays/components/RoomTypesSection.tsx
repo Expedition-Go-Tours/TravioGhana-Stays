@@ -287,7 +287,7 @@ export default function RoomTypesSection({
               />
             </StaysField>
 
-            <StaysField label={`Nightly price (${currency})`} error={errors.price}>
+            <StaysField label={`Nightly price (${DEFAULT_CURRENCY})`} error={errors.price}>
               <StaysInput
                 type="number"
                 min="0"
@@ -298,7 +298,7 @@ export default function RoomTypesSection({
             </StaysField>
 
             <StaysField
-              label={`Weekend price (${currency})`}
+              label={`Weekend price (${DEFAULT_CURRENCY})`}
               hint="Leave blank to use the nightly price."
             >
               <StaysInput

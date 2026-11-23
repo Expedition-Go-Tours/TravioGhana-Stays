@@ -164,7 +164,7 @@ export default function UiGalleryPage() {
           <StatCard label="Promotions" value="2" tone="accent" hint="1 ends this week" />
         </div>
         <p className="flex flex-wrap gap-4 text-sm text-body">
-          <Money amount={1250} /> <Money amount={1250} currency="EUR" /> <Money amount={1250} currency="GHS" />
+          <Money amount={1250} />
           <Money amount={1_250_000} compact />
         </p>
       </Section>
@@ -322,7 +322,7 @@ export default function UiGalleryPage() {
               <Field label="Currency" hint="The native picker, best on phones">
                 <NativeSelect defaultValue="USD">
                   <option>USD</option>
-                  <option>GHS</option>
+                  <option>USD</option>
                   <option>EUR</option>
                 </NativeSelect>
               </Field>

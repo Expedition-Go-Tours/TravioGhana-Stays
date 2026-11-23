@@ -1,16 +1,17 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { permissionMatches } from '../teamRoleContext';
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   mockSession: { mockSessionEnabled: false },
+  auth: { isAuthenticated: true, user: { roles: ['customer'] } },
 }));
 
 vi.mock('@/lib/axios', () => ({ default: { get: mocks.get } }));
 vi.mock('@/lib/mockSession', () => mocks.mockSession);
 vi.mock('@/stores/authStore', () => ({
-  useAuthStore: (selector: (s: { isAuthenticated: boolean }) => unknown) => selector({ isAuthenticated: true }),
+  useAuthStore: (selector: (s: typeof mocks.auth) => unknown) => selector(mocks.auth),
 }));
 
 import { TeamRoleProvider } from '../TeamRoleProvider';
@@ -54,6 +55,12 @@ function Probe() {
 }
 
 describe('TeamRoleProvider', () => {
+  beforeEach(() => {
+    mocks.get.mockReset();
+    mocks.auth.isAuthenticated = true;
+    mocks.auth.user = { roles: ['customer'] };
+  });
+
   it('loads the member role once and answers permission checks from it', async () => {
     mocks.get.mockResolvedValue({
       data: { data: { role: 'finance', roles: ['finance'], permissions: ['payouts.*'], isOwner: false } },
@@ -70,8 +77,52 @@ describe('TeamRoleProvider', () => {
     expect(mocks.get).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to no permissions when the role request fails', async () => {
-    mocks.get.mockReset().mockRejectedValue(new Error('offline'));
+  it('grants an ADMIN role every privilege regardless of casing or empty permissions', async () => {
+    mocks.get.mockResolvedValue({
+      data: { data: { role: 'ADMIN', roles: [{ name: 'ADMIN' }], permissions: [], isOwner: false } },
+    });
+    render(
+      <TeamRoleProvider>
+        <Probe />
+      </TeamRoleProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'));
+    expect(screen.getByTestId('roles')).toHaveTextContent('admin');
+    expect(screen.getByTestId('finance')).toHaveTextContent('true');
+    expect(screen.getByTestId('team')).toHaveTextContent('true');
+  });
+
+  it('keeps a supplier account on full access when /my-role is unavailable', async () => {
+    mocks.auth.user = { roles: ['supplier'] };
+    mocks.get.mockRejectedValue(new Error('offline'));
+    render(
+      <TeamRoleProvider>
+        <Probe />
+      </TeamRoleProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'));
+    expect(screen.getByTestId('finance')).toHaveTextContent('true');
+    expect(screen.getByTestId('team')).toHaveTextContent('true');
+  });
+
+  it('treats an admin user account as full access even when the role payload is narrower', async () => {
+    mocks.auth.user = { roles: ['admin'] };
+    mocks.get.mockResolvedValue({
+      data: { data: { role: 'finance', roles: ['finance'], permissions: ['payouts.view'], isOwner: false } },
+    });
+    render(
+      <TeamRoleProvider>
+        <Probe />
+      </TeamRoleProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'));
+    expect(screen.getByTestId('finance')).toHaveTextContent('true');
+    expect(screen.getByTestId('team')).toHaveTextContent('true');
+  });
+
+  it('falls back to no permissions when the role request fails for a customer account', async () => {
+    mocks.auth.user = { roles: ['customer'] };
+    mocks.get.mockRejectedValue(new Error('offline'));
     render(
       <TeamRoleProvider>
         <Probe />

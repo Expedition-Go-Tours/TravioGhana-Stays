@@ -11,19 +11,43 @@ import { STAYS_BUILDER_STEP_COUNT } from '@/features/stays/config/staysSteps';
 beforeEach(() => staysMock.reset());
 
 describe('dashboard aggregates', () => {
-  it('reproduces the prototype numbers for the reference dataset', async () => {
+  it('reproduces the reference dataset with live operations', async () => {
     const data = await staysMock.getDashboard();
     expect(data.stats).toEqual({
-      upcomingArrivals: 4,
-      newReservations: 1,
+      upcomingArrivals: 7,
+      newReservations: 2,
       liveProperties: 1,
-      grossBookingValue: 7650,
+      grossBookingValue: 10550,
     });
-    expect(data.cancellation).toEqual({ rate: 42.9, cancelled: 3, total: 7 });
+    expect(data.cancellation).toEqual({ rate: 36.4, cancelled: 4, total: 11 });
     expect(data.actionRequired).toEqual({
-      messagesAwaitingReply: 3,
-      bookingsToReview: 1,
+      messagesAwaitingReply: 4,
+      bookingsToReview: 2,
       draftProperties: 0,
+    });
+    expect(data.happeningToday).toEqual({
+      reservations: 2,
+      arrivals: 1,
+      departures: 1,
+      reviews: 2,
+      cancellations: 1,
+    });
+    expect(data.properties).toHaveLength(3);
+    expect(data.properties?.[0]).toMatchObject({
+      id: 'p1',
+      status: 'Live',
+      bookable: true,
+      arrivalsNext48h: 2,
+      departuresNext48h: 0,
+      guestMessages: 3,
+    });
+    expect(data.properties?.[1]).toMatchObject({
+      id: 'p2',
+      status: 'Paused',
+      bookable: false,
+      arrivalsNext48h: 0,
+      departuresNext48h: 1,
+      guestMessages: 1,
     });
     expect(data.recentBookings[0]).toMatchObject({
       id: 'TG-S-20493',
@@ -32,17 +56,52 @@ describe('dashboard aggregates', () => {
     });
     expect(data.topProperties[0]).toMatchObject({
       name: 'Akwaaba Coast Hotel',
-      bookings: 7,
+      bookings: 10,
       roomTypes: 1,
-      revenue: 7650,
+      revenue: 9650,
     });
+
+    expect(data.performance?.period).toMatchObject({ key: 'month-to-date', label: 'Month-to-date' });
+    expect(data.performance?.summary).toMatchObject({ openProperties: 1, totalProperties: 3 });
+    expect(data.performance?.properties).toHaveLength(3);
+    expect(data.performance?.properties[0]).toMatchObject({
+      id: 'p1',
+      reviewScore: 9,
+      reviewCount: 2,
+    });
+    expect(data.performance?.properties[1]).toMatchObject({ id: 'p2', reviewScore: null });
+    expect(data.settings?.properties).toHaveLength(3);
+    expect(data.settings?.properties[0]).toMatchObject({
+      id: 'p1',
+      rewardsEligible: true,
+      preferredEligible: false,
+      minimumStay: 1,
+      localRates: false,
+      mobileRates: false,
+      listingScore: 70,
+    });
+    expect(data.settings?.properties[1]).toMatchObject({
+      id: 'p2',
+      rewardsEligible: false,
+      minimumStay: 7,
+      listingScore: 56,
+    });
+  });
+
+  it('computes a selected performance period and previous-period comparison', async () => {
+    const data = await staysMock.getDashboard({ period: 'last-30-days', compare: 'previous-period' });
+    expect(data.performance?.period).toMatchObject({ key: 'last-30-days', label: 'Last 30 days' });
+    expect(data.performance?.comparison).toMatchObject({ key: 'previous-period', label: 'Previous period' });
+    expect(data.performance?.summary).toHaveProperty('bookedAvgDailyRate');
+    expect(data.performance?.previous).toHaveProperty('bookedAvgDailyRate');
   });
 });
 
 describe('properties', () => {
   it('filters by status and search text', async () => {
-    expect(await staysMock.listProperties()).toHaveLength(1);
+    expect(await staysMock.listProperties()).toHaveLength(3);
     expect(await staysMock.listProperties({ status: 'Draft' })).toHaveLength(0);
+    expect(await staysMock.listProperties({ status: 'Paused' })).toHaveLength(1);
     expect(await staysMock.listProperties({ query: 'akwaaba' })).toHaveLength(1);
     expect(await staysMock.listProperties({ query: 'nothing-matches' })).toHaveLength(0);
   });
@@ -64,8 +123,9 @@ describe('properties', () => {
 
   it('deletes a property together with its bookings', async () => {
     await staysMock.deleteProperty('p1');
-    expect(await staysMock.listProperties()).toHaveLength(0);
-    expect(await staysMock.listBookings()).toHaveLength(0);
+    const remaining = await staysMock.listProperties();
+    expect(remaining.map((property) => property.id)).toEqual(['p2', 'p3']);
+    expect((await staysMock.listBookings()).some((booking) => booking.propertyId === 'p1')).toBe(false);
   });
 });
 
@@ -121,16 +181,17 @@ describe('availability overrides', () => {
 describe('bookings', () => {
   it('filters by status and joins the property name', async () => {
     const all = await staysMock.listBookings();
-    expect(all).toHaveLength(7);
+    expect(all).toHaveLength(11);
     const newOnly = await staysMock.listBookings({ status: 'New' });
-    expect(newOnly).toHaveLength(1);
+    expect(newOnly).toHaveLength(2);
     expect(newOnly[0].propertyName).toBe('Akwaaba Coast Hotel');
   });
 
   it('updates a booking status', async () => {
     const updated = await staysMock.updateBookingStatus('TG-S-20494', 'Confirmed');
     expect(updated.status).toBe('Confirmed');
-    expect(await staysMock.listBookings({ status: 'New' })).toHaveLength(0);
+    const newOnly = await staysMock.listBookings({ status: 'New' });
+    expect(newOnly.map((booking) => booking.id)).toEqual(['TG-S-20502']);
   });
 });
 

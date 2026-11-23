@@ -241,7 +241,7 @@ export function PayoutScheduleEditor({ plan, available = 0, currency = "USD", on
           {available > 0 && (
             <div className="flex items-center justify-between gap-3 text-sm">
               <span className="text-slate-500">Accumulating now</span>
-              <span className="font-semibold text-emerald-600">{formatCurrency(available, currency)}</span>
+              <span className="text-base font-bold text-emerald-600">{formatCurrency(available, currency)}</span>
             </div>
           )}
           <div className="flex items-start gap-2 pt-1">

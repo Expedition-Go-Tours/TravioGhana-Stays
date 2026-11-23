@@ -1,7 +1,7 @@
 /**
- * Dashboard: the numbers come from the mock dataset, every link lands on a
- * real route the viewer may open, rows open the booking, and a failed or
- * not-yet-shipped endpoint gets its own state instead of empty tiles.
+ * Dashboard: the operations homepage reads the mock dashboard payload, shows
+ * today's five figures, filters the per-property table, links every row to a
+ * real route, and keeps the two unbuilt tabs honest.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -15,6 +15,10 @@ import { AxiosError, AxiosHeaders } from "axios";
 import StaysDashboardPage from "../StaysDashboardPage";
 import { staysMock } from "../../mock/store";
 import { useAuthStore } from "@/stores/authStore";
+import { formatMoney } from "@/lib/money";
+
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn() }));
+vi.mock("sonner", () => ({ toast }));
 
 const state = vi.hoisted(() => ({
   mockMode: true,
@@ -52,13 +56,21 @@ function Location() {
   return <span data-testid="location">{location.pathname + location.search}</span>;
 }
 
-function renderPage() {
+function renderPage(initial = "/stays") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/stays"]}>
+      <MemoryRouter initialEntries={[initial]}>
         <Routes>
-          <Route path="/stays" element={<StaysDashboardPage />} />
+          <Route
+            path="/stays"
+            element={
+              <>
+                <StaysDashboardPage />
+                <Location />
+              </>
+            }
+          />
           <Route path="*" element={<Location />} />
         </Routes>
       </MemoryRouter>
@@ -81,6 +93,17 @@ function setWide(wide: boolean) {
         dispatchEvent: vi.fn(),
       }) as unknown as MediaQueryList,
   );
+}
+
+const search = () => new URLSearchParams(screen.getByTestId("location").textContent?.split("?")[1] ?? "");
+
+function propertyRows() {
+  return within(screen.getByRole("list", { name: "Property operations" })).getAllByRole("listitem");
+}
+
+function stat(name: RegExp) {
+  const today = screen.getByRole("region", { name: "Happening today" });
+  return within(today).getByRole("link", { name });
 }
 
 function notFound(url: string) {
@@ -114,12 +137,14 @@ function declaredRoutes(): RegExp[] {
 }
 
 beforeEach(() => {
+  localStorage.clear();
   staysMock.reset();
   state.mockMode = true;
   state.granted = null;
   setWide(false);
   fetchDashboard.mockClear();
   loadVerification.mockClear();
+  toast.success.mockClear();
   useAuthStore.setState({
     user: { id: "u1", name: "Ama Boateng", email: "ama@example.com", roles: ["supplier"] },
     supplierProfile: { status: "ACTIVE", businessName: "Akwaaba Coast Hotel Ltd" },
@@ -130,105 +155,338 @@ afterEach(() => {
   setWide(false);
 });
 
-describe("StaysDashboardPage", () => {
-  it("greets the signed-in person and shows the KPI figures", async () => {
+describe("StaysDashboardPage — operations homepage", () => {
+  it("greets the signed-in person and shows today's five figures", async () => {
     renderPage();
 
-    expect(screen.getByRole("heading", { level: 1, name: /^Good (morning|afternoon|evening), Ama$/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Dashboard" })).toBeTruthy();
+    expect(screen.getByText(/Good (morning|afternoon|evening), Ama/)).toBeTruthy();
     expect(screen.getByText("Akwaaba Coast Hotel Ltd")).toBeTruthy();
+    expect(await screen.findByRole("link", { name: /1 document to review/ })).toHaveAttribute(
+      "href",
+      "/stays/verification",
+    );
 
-    const figures = await screen.findByRole("region", { name: "Key figures" });
-    const tile = (label: string) => within(figures).getByText(label).closest("div.rounded-card") as HTMLElement;
-    expect(within(tile("Upcoming arrivals")).getByText("4")).toBeTruthy();
-    expect(within(tile("New reservations")).getByText("1")).toBeTruthy();
-    expect(within(tile("Live properties")).getByText("1")).toBeTruthy();
-    expect(within(tile("Booking value")).getByText("$7,650.00")).toBeTruthy();
+    await screen.findByRole("region", { name: "Happening today" });
+    expect(within(stat(/Reservations/)).getByText("2")).toBeTruthy();
+    expect(within(stat(/Arrivals/)).getByText("1")).toBeTruthy();
+    expect(within(stat(/Departures/)).getByText("1")).toBeTruthy();
+    expect(within(stat(/Reviews/)).getByText("2")).toBeTruthy();
+    expect(within(stat(/Cancellations/)).getByText("1")).toBeTruthy();
+    expect(stat(/Reservations/).getAttribute("href")).toBe("/stays/bookings");
+    expect(stat(/Reviews/).getAttribute("href")).toBe("/stays/reviews");
+    expect(stat(/Cancellations/).getAttribute("href")).toBe("/stays/cancellation");
+  });
+
+  it("shows every property with its status and phone-card counts", async () => {
+    renderPage();
+    await screen.findByRole("region", { name: "Happening today" });
+
+    const rows = propertyRows();
+    expect(rows).toHaveLength(3);
+    expect(within(rows[0]).getByText("Akwaaba Coast Hotel")).toBeTruthy();
+    expect(within(rows[1]).getByText("Kumasi Gardens Lodge")).toBeTruthy();
+    expect(within(rows[2]).getByText("Cape Coast Heritage Inn")).toBeTruthy();
+    // Paused listings use Booking.com's "closed / not bookable" wording.
+    expect(within(rows[1]).getByText("Closed / Not bookable")).toBeTruthy();
+    expect(within(rows[2]).getByText("Under review")).toBeTruthy();
   });
 
   it("labels mock numbers as demo data, and only in mock mode", async () => {
     const { unmount } = renderPage();
-    await screen.findByRole("region", { name: "Key figures" });
+    await screen.findByRole("region", { name: "Happening today" });
     expect(screen.getByText("Demo data")).toBeTruthy();
     unmount();
 
     state.mockMode = false;
     renderPage();
-    await screen.findByRole("region", { name: "Key figures" });
+    await screen.findByRole("region", { name: "Happening today" });
     expect(screen.queryByText("Demo data")).toBeNull();
   });
 
-  it("lists what needs doing with counts, each linking to its page", async () => {
+  it("filters by location, search and status, and resets back to every property", async () => {
+    const user = userEvent.setup();
     renderPage();
+    await screen.findByRole("region", { name: "Happening today" });
 
-    const todo = await screen.findByRole("region", { name: "Things to do" });
-    expect(within(todo).getByRole("link", { name: /Guest messages\s*3 unread/ }).getAttribute("href")).toBe("/stays/customers");
-    expect(within(todo).getByRole("link", { name: /New reservations\s*1 to confirm/ }).getAttribute("href")).toBe("/stays/bookings");
-    expect(within(todo).getByRole("link", { name: /Unfinished listings\s*Every listing is complete/ }).getAttribute("href")).toBe(
-      "/stays/properties",
-    );
-    // The seeded verification payload has one document to re-upload.
-    expect(
-      await within(todo).findByRole("link", { name: /Verification documents\s*1 need attention/ }),
-    ).toHaveAttribute("href", "/stays/verification");
-    expect(within(todo).getByText("3 open")).toBeTruthy();
+    await user.selectOptions(screen.getByLabelText("Filter by location"), "Kumasi");
+    await waitFor(() => expect(propertyRows()).toHaveLength(1));
+    expect(propertyRows()[0].textContent).toContain("Kumasi Gardens Lodge");
+    expect(search().get("location")).toBe("Kumasi");
+
+    await user.click(screen.getByRole("button", { name: "Reset filters" }));
+    await waitFor(() => expect(propertyRows()).toHaveLength(3));
+
+    await user.type(screen.getByLabelText("Filter by property ID or name"), "akwaaba");
+    await waitFor(() => expect(propertyRows()).toHaveLength(1));
+    expect(propertyRows()[0].textContent).toContain("Akwaaba Coast Hotel");
+    expect(search().get("q")).toBe("akwaaba");
+
+    await user.click(screen.getByRole("button", { name: "Reset filters" }));
+    await user.selectOptions(screen.getByLabelText("Filter by status"), "Paused");
+    await waitFor(() => expect(propertyRows()).toHaveLength(1));
+    expect(propertyRows()[0].textContent).toContain("Kumasi Gardens Lodge");
+    expect(search().get("status")).toBe("Paused");
   });
 
-  it("opens the booking when a reservation is clicked", async () => {
+  it("shows the full operations table on wide screens and opens a property", async () => {
+    setWide(true);
     const user = userEvent.setup();
     renderPage();
 
-    const list = await screen.findByRole("list", { name: "Recent reservations" });
-    expect(within(list).getAllByRole("listitem")).toHaveLength(5);
+    const table = await screen.findByRole("table", { name: "Property operations" });
+    const headers = within(table).getAllByRole("columnheader").map((cell) => cell.textContent);
+    expect(headers).toEqual([
+      "ID",
+      "Property",
+      "Status on Travio",
+      "Arrivals in next 48 hours",
+      "Departures in next 48 hours",
+      "Guest messages",
+      "Travio messages",
+    ]);
 
-    await user.click(screen.getByRole("listitem", { name: "Open booking TG-S-20493 for Sarah Johnson" }));
-    expect(screen.getByTestId("location").textContent).toBe("/stays/bookings?bookingId=TG-S-20493");
+    const pausedRow = within(table)
+      .getAllByRole("row")
+      .find((row) => row.textContent?.includes("Kumasi Gardens Lodge"));
+    expect(pausedRow?.textContent).toContain("Closed / Not bookable");
+
+    await user.click(within(table).getByRole("link", { name: "Kumasi Gardens Lodge" }));
+    await waitFor(() => expect(screen.getByTestId("location").textContent).toBe("/stays/properties/p2"));
   });
 
-  it("shows the full table with a property column on wide screens", async () => {
-    setWide(true);
+  it("shows the Performance summary and per-property table", async () => {
+    const user = userEvent.setup();
+    const data = await staysMock.getDashboard({ period: "month-to-date", compare: "none" });
+    const summary = data.performance!.summary;
     renderPage();
+    await screen.findByRole("region", { name: "Happening today" });
 
-    const table = await screen.findByRole("table", { name: "Recent reservations" });
+    await user.click(screen.getByRole("tab", { name: "Performance" }));
+    const card = await screen.findByRole("region", { name: "Your overall performance" });
+
+    expect(within(card).getByText("Booked avg. daily rate")).toBeTruthy();
+    const tile = (label: string) => within(card).getByText(label).parentElement as HTMLElement;
+    expect(tile("Booked avg. daily rate").textContent).toContain(formatMoney(summary.bookedAvgDailyRate));
+    expect(tile("Stayed avg. daily rate").textContent).toContain(formatMoney(summary.stayedAvgDailyRate));
+    expect(tile("Stayed earnings").textContent).toContain(formatMoney(summary.stayedEarnings));
+    expect(within(card).getByText("1/3")).toBeTruthy();
+    expect(within(card).getByText("properties in this group")).toBeTruthy();
+    expect(within(card).getByRole("link", { name: "Get started" })).toHaveAttribute(
+      "href",
+      "/stays/special-offers",
+    );
+    expect(search().get("tab")).toBe("performance");
+
+    const list = screen.getByRole("list", { name: "Property performance" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(list).getByText("Akwaaba Coast Hotel")).toBeTruthy();
+    expect(within(list).getByText("Kumasi Gardens Lodge")).toBeTruthy();
+    expect(within(list).getByText("Cape Coast Heritage Inn")).toBeTruthy();
+  });
+
+  it("shows the full Performance table, review scores and no-review rows", async () => {
+    setWide(true);
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("region", { name: "Happening today" });
+
+    await user.click(screen.getByRole("tab", { name: "Performance" }));
+    const table = await screen.findByRole("table", { name: "Property performance" });
     const headers = within(table).getAllByRole("columnheader").map((cell) => cell.textContent);
-    expect(headers).toEqual(["Guest", "Stay", "Property", "Amount", "Status"]);
-    const row = within(table).getByRole("row", { name: "Open booking TG-S-20493 for Sarah Johnson" });
-    expect(within(row).getByText("$3,000.00")).toBeTruthy();
-    expect(within(row).getByText("Confirmed")).toBeTruthy();
-    expect(within(row).getByText("4 nights")).toBeTruthy();
+    expect(headers).toEqual([
+      "ID",
+      "Property",
+      "Booked avg. daily rate",
+      "Stayed avg. daily rate",
+      "Cancellation rate",
+      "Stayed room nights",
+      "Stayed earnings",
+      "Review score",
+      "Reservations",
+      "Click-through rate (30 days)",
+      "Conversion (30 days)",
+    ]);
+    expect(within(table).getByRole("img", { name: /Scored 9 out of 10/ })).toBeTruthy();
+    expect(within(table).getAllByText("No reviews")).toHaveLength(2);
+  });
+
+  it("applies the Performance period and comparison, and shows previous-period deltas", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("region", { name: "Happening today" });
+
+    await user.click(screen.getByRole("tab", { name: "Performance" }));
+    await screen.findByRole("region", { name: "Your overall performance" });
+
+    await user.selectOptions(screen.getByLabelText("Compare with"), "previous-period");
+    await user.click(screen.getByRole("button", { name: "Show data" }));
+    await waitFor(() =>
+      expect(fetchDashboard).toHaveBeenLastCalledWith({
+        period: "month-to-date",
+        compare: "previous-period",
+      }),
+    );
+    expect(await screen.findByText("Month-to-date · Previous period")).toBeTruthy();
+    expect((await screen.findAllByText(/vs previous/)).length).toBeGreaterThan(0);
+
+    await user.selectOptions(screen.getByLabelText("Filter by period"), "last-30-days");
+    await user.click(screen.getByRole("button", { name: "Show data" }));
+    await waitFor(() =>
+      expect(fetchDashboard).toHaveBeenLastCalledWith({
+        period: "last-30-days",
+        compare: "previous-period",
+      }),
+    );
+    expect(await screen.findByText("Last 30 days · Previous period")).toBeTruthy();
+  });
+
+  it("shows the Settings insight card and property settings table", async () => {
+    setWide(true);
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("region", { name: "Happening today" });
+
+    await user.click(screen.getByRole("tab", { name: "Settings" }));
+    expect(
+      await screen.findByRole("heading", {
+        name: "Strengthen your offering by understanding guest demand",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Go to insights" })).toHaveAttribute("href", "/stays/analytics");
+    expect(search().get("tab")).toBe("settings");
+
+    const table = await screen.findByRole("table", { name: "Property settings" });
+    const headers = within(table).getAllByRole("columnheader").map((cell) => cell.textContent);
+    expect(headers).toEqual([
+      "ID",
+      "Property",
+      "Travio Rewards",
+      "Preferred",
+      "Minimum stay",
+      "Local rates",
+      "Mobile rates",
+      "Listing score",
+    ]);
+    expect(within(table).getByText("7 nights")).toBeTruthy();
+    expect(within(table).getAllByText("Not eligible")).toHaveLength(5);
+    expect(within(table).getAllByText("Add now")).toHaveLength(6);
+    expect(within(table).queryByRole("link", { name: "Add now" })).toBeNull();
+    expect(within(table).getAllByRole("progressbar", { name: "Listing score" })).toHaveLength(3);
+  });
+
+  it("applies the shared location filter to Performance and Settings", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("region", { name: "Happening today" });
+
+    await user.selectOptions(screen.getByLabelText("Filter by location"), "Kumasi");
+
+    await user.click(screen.getByRole("tab", { name: "Performance" }));
+    const performanceList = await screen.findByRole("list", { name: "Property performance" });
+    expect(within(performanceList).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(performanceList).getByText("Kumasi Gardens Lodge")).toBeTruthy();
+    const summaryCard = screen.getByRole("region", { name: "Your overall performance" });
+    expect(within(summaryCard).getByText("0/1")).toBeTruthy();
+
+    await user.click(screen.getByRole("tab", { name: "Settings" }));
+    const settingsList = await screen.findByRole("list", { name: "Property settings" });
+    expect(within(settingsList).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(settingsList).getByText("Kumasi Gardens Lodge")).toBeTruthy();
   });
 
   it("only links to pages declared in the router", async () => {
+    const user = userEvent.setup();
     renderPage();
-    await screen.findByRole("list", { name: "Recent reservations" });
-    await screen.findByRole("link", { name: /Verification documents/ });
+    await screen.findByRole("region", { name: "Happening today" });
+
+    const hrefs: string[] = [];
+    const collect = () => {
+      hrefs.push(...screen.getAllByRole("link").map((link) => link.getAttribute("href") ?? ""));
+    };
+    collect();
+
+    await user.click(screen.getByRole("tab", { name: "Performance" }));
+    await screen.findByRole("region", { name: "Your overall performance" });
+    collect();
+
+    await user.click(screen.getByRole("tab", { name: "Settings" }));
+    await screen.findByRole("heading", { name: "Strengthen your offering by understanding guest demand" });
+    collect();
 
     const routes = declaredRoutes();
-    const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href") ?? "");
     expect(hrefs.length).toBeGreaterThan(8);
     for (const href of hrefs) {
       const path = href.split(/[?#]/)[0];
       expect(routes.some((route) => route.test(path)), `${href} is not a route`).toBe(true);
     }
-    // The old dashboard linked to "/finance", which is not a Stays route.
     expect(hrefs).not.toContain("/finance");
-    expect(hrefs).toContain("/stays/finance");
+    expect(hrefs).toContain("/stays/special-offers");
+    expect(hrefs).toContain("/stays/analytics");
   });
 
-  it("hides links the viewer has no permission to open", async () => {
+  it("hides actions and links the viewer cannot open", async () => {
     state.granted = new Set(["chat.view"]);
     renderPage();
 
-    const todo = await screen.findByRole("region", { name: "Things to do" });
-    expect(within(todo).getAllByRole("link")).toHaveLength(1);
-    expect(within(todo).getByRole("link", { name: /Guest messages/ })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: /List a property/ })).toBeNull();
-    expect(screen.queryByRole("link", { name: /View all/ })).toBeNull();
-    expect(screen.queryByRole("navigation", { name: "Shortcuts" })).toBeNull();
-    // Reservations still show, but rows are not clickable without bookings access.
-    const list = screen.getByRole("list", { name: "Recent reservations" });
-    expect(within(list).getAllByRole("listitem")[0].getAttribute("tabindex")).toBeNull();
-    // Verification is owner territory: its payload is never requested.
+    const today = await screen.findByRole("region", { name: "Happening today" });
+    // Cancellation is open to every role; bookings and reviews are not.
+    expect(within(today).getByRole("link", { name: /Cancellations/ })).toBeTruthy();
+    expect(within(today).queryByRole("link", { name: /Reservations/ })).toBeNull();
+    expect(within(today).queryByRole("link", { name: /Reviews/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Add new property/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /document to review/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Akwaaba Coast Hotel" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Performance" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Settings" })).toBeTruthy();
     expect(loadVerification).not.toHaveBeenCalled();
+  });
+
+  it("records the feedback answer locally", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("region", { name: "Happening today" });
+
+    const group = screen.getByRole("group", { name: "Was this data helpful?" });
+    await user.click(within(group).getByRole("button", { name: "Yes, this was helpful" }));
+
+    expect(await screen.findByText(/we've noted your answer/)).toBeTruthy();
+    expect(toast.success).toHaveBeenCalledWith("Thanks for your feedback.");
+    expect(localStorage.getItem("stays.dashboard.feedback.v2.operations")).toBe("up");
+    expect(within(group).getByRole("button", { name: "Yes, this was helpful" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("downloads the filtered table", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("region", { name: "Happening today" });
+
+    await user.click(screen.getByRole("button", { name: "Download" }));
+    expect(toast.success).toHaveBeenCalledWith("Download started.");
+  });
+
+  it("renders Performance and Settings when the API omits the optional blocks", async () => {
+    const actual = await vi.importActual<typeof import("../../api")>("../../api");
+    const real = await actual.fetchStaysDashboard();
+    fetchDashboard.mockResolvedValueOnce({ ...real, performance: undefined, settings: undefined });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("region", { name: "Happening today" });
+
+    expect(screen.queryByText("This feature isn't available on your account yet")).toBeNull();
+
+    await user.click(screen.getByRole("tab", { name: "Performance" }));
+    expect(await screen.findByRole("region", { name: "Your overall performance" })).toBeTruthy();
+    const performanceList = screen.getByRole("list", { name: "Property performance" });
+    expect(within(performanceList).getAllByRole("listitem")).toHaveLength(3);
+
+    await user.click(screen.getByRole("tab", { name: "Settings" }));
+    const settingsList = await screen.findByRole("list", { name: "Property settings" });
+    expect(within(settingsList).getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.queryByText("This feature isn't available on your account yet")).toBeNull();
   });
 
   it("shows a retryable error when the dashboard fails to load", async () => {
@@ -238,10 +496,10 @@ describe("StaysDashboardPage", () => {
 
     const alert = await screen.findByRole("alert");
     expect(within(alert).getByText("We couldn't load your dashboard")).toBeTruthy();
-    expect(screen.queryByRole("region", { name: "Key figures" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Happening today" })).toBeNull();
 
     await user.click(within(alert).getByRole("button", { name: /Try again/ }));
-    expect(await screen.findByRole("region", { name: "Key figures" })).toBeTruthy();
+    expect(await screen.findByRole("region", { name: "Happening today" })).toBeTruthy();
     expect(fetchDashboard).toHaveBeenCalledTimes(2);
   });
 
@@ -254,24 +512,12 @@ describe("StaysDashboardPage", () => {
     expect(screen.queryByRole("button", { name: /Try again/ })).toBeNull();
   });
 
-  it("says when there are no reservations or properties yet", async () => {
+  it("says when there are no properties to show", async () => {
     const actual = await vi.importActual<typeof import("../../api")>("../../api");
     const real = await actual.fetchStaysDashboard();
-    fetchDashboard.mockResolvedValueOnce({ ...real, recentBookings: [], topProperties: [] });
+    fetchDashboard.mockResolvedValueOnce({ ...real, properties: [], topProperties: [] });
     renderPage();
 
-    expect(await screen.findByText("No reservations yet")).toBeTruthy();
-    expect(screen.getByText("No properties yet")).toBeTruthy();
-  });
-});
-
-describe("cancellation card", () => {
-  it("shows the rate with the record-building band below ten bookings", async () => {
-    renderPage();
-    const card = await screen.findByRole("region", { name: "Cancellation rate" });
-    expect(within(card).getByText("42.9%")).toBeTruthy();
-    expect(within(card).getByText("Building your record")).toBeTruthy();
-    expect(within(card).getByText("3 cancellations out of 7 reservations")).toBeTruthy();
-    await waitFor(() => expect(within(card).getByRole("link", { name: /View details/ })).toHaveAttribute("href", "/stays/cancellation"));
+    expect(await screen.findByText("No properties match")).toBeTruthy();
   });
 });

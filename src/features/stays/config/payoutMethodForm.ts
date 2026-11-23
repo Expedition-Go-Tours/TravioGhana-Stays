@@ -33,21 +33,7 @@ export const PAYOUT_METHOD_TYPES = [
 /** Mobile money networks the product supports. Anything else is typed in. */
 export const MOBILE_MONEY_PROVIDERS = ["MTN Mobile Money", "Telecel Cash", "AT Money"];
 
-/** Currencies a supplier can be paid out in. */
-export const PAYOUT_CURRENCIES = [
-  { code: "USD", label: "US Dollar" },
-  { code: "GHS", label: "Ghanaian Cedi" },
-  { code: "NGN", label: "Nigerian Naira" },
-  { code: "KES", label: "Kenyan Shilling" },
-  { code: "ZAR", label: "South African Rand" },
-  { code: "EUR", label: "Euro" },
-  { code: "GBP", label: "British Pound" },
-  { code: "CAD", label: "Canadian Dollar" },
-  { code: "AUD", label: "Australian Dollar" },
-  { code: "AED", label: "UAE Dirham" },
-  { code: "INR", label: "Indian Rupee" },
-  { code: "JPY", label: "Japanese Yen" },
-];
+// Stays payouts are settled in USD only.
 
 // ─────────────────────────────────────────────────────────────
 // Countries
@@ -97,7 +83,7 @@ const IBAN_COUNTRIES = new Set([...SEPA_COUNTRIES, "GB", "CH", "NO", "LI", "MC",
  */
 const COUNTRY_SPECS = {
   GH: {
-    currency: "GHS",
+    currency: "USD",
     identifiers: ["accountNumber", "bankName", "branchCode"],
     optionalIdentifiers: ["branchName", "bankAddress"],
     branchCodeLabel: "Branch code",
@@ -161,11 +147,8 @@ const DEFAULT_SPEC = {
 
 const isSepa = (code) => SEPA_COUNTRIES.has(code);
 
-/** The currency a country's own rail settles in. */
-const homeCurrencyFor = (code) => {
-  if (isSepa(code)) return "EUR";
-  return COUNTRY_SPECS[code]?.currency || DEFAULT_SPEC.currency;
-};
+/** The currency a country's rail settles in. Stays is USD-only. */
+const homeCurrencyFor = () => DEFAULT_SPEC.currency;
 
 /**
  * All countries, alphabetical by name, for the country picker.
@@ -304,7 +287,7 @@ export const maskTail = (value) => {
 // ─────────────────────────────────────────────────────────────
 
 /** A blank form, pre-filled with the sensible currency for `countryCode`. */
-export function initialPayoutMethodForm({ countryCode = "GH", currency } = {}) {
+export function initialPayoutMethodForm({ countryCode = "GH" } = {}) {
   return {
     type: "BANK_TRANSFER",
     accountName: "",
@@ -321,7 +304,7 @@ export function initialPayoutMethodForm({ countryCode = "GH", currency } = {}) {
     mobileProvider: "",
     mobileNumber: "",
     paypalEmail: "",
-    currency: currency || homeCurrencyFor(countryCode) || "USD",
+    currency: "USD",
     isDefault: false,
   };
 }
@@ -396,18 +379,13 @@ export function describePayoutRoute(form) {
   }
 
   const code = (form.bankCountry || "").toUpperCase();
-  const currency = (form.currency || "USD").toUpperCase();
   const spec = getCountryBankSpec(code);
-  const currencyOf = COUNTRIES.find((c) => c.code === code)?.currency;
 
-  if (spec.isSepa && currency === "EUR") {
-    return { title: "SEPA transfer", detail: "No fee from us — usually next business day." };
-  }
-  if (currency && currency === currencyOf) {
-    return { title: "Local transfer", detail: "No international fees — usually 1–2 business days." };
+  if (spec.isSepa) {
+    return { title: "SEPA transfer", detail: "No fee from us — paid in USD, usually next business day." };
   }
   return {
-    title: "International transfer",
-    detail: "Your bank may charge a receiving fee, so we send the full amount.",
+    title: "Bank transfer",
+    detail: "Payouts are sent in USD to your bank account, usually within 1–2 business days.",
   };
 }

@@ -76,7 +76,7 @@ describe("StaysCancellationPage — experiences-parity cancellation page", () =>
     const table = screen.getByRole("table");
     await waitFor(() => {
       const firstRow = within(table).getAllByRole("row")[1];
-      expect(firstRow).toHaveTextContent("TG-S-20499");
+      expect(firstRow).toHaveTextContent("TG-S-20503");
     });
   });
 
