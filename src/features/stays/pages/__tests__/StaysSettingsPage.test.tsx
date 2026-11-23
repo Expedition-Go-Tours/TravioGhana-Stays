@@ -29,8 +29,14 @@ vi.mock("@/stores/authStore", () => {
   return { useAuthStore, getAuthToken: () => "test-token" };
 });
 
+const roleState = { hasPermission: (_permission: string) => true };
+
 vi.mock("@/hooks/useTeamRole", () => ({
-  useTeamRole: () => ({ hasPermission: () => true, isOwner: true, teamRoles: [] }),
+  useTeamRole: () => ({
+    hasPermission: (permission: string) => roleState.hasPermission(permission),
+    isOwner: true,
+    teamRoles: [],
+  }),
 }));
 
 vi.mock("sonner", () => ({
@@ -40,7 +46,10 @@ vi.mock("sonner", () => ({
 import StaysSettingsPage from "../StaysSettingsPage";
 import { staysMock } from "../../mock/store";
 
-beforeEach(() => staysMock.reset());
+beforeEach(() => {
+  staysMock.reset();
+  roleState.hasPermission = () => true;
+});
 
 function renderPage(entry = "/stays/settings?tab=profile") {
   return render(
@@ -51,7 +60,7 @@ function renderPage(entry = "/stays/settings?tab=profile") {
 }
 
 const openTab = async (user, name) => {
-  await user.click(screen.getByRole("button", { name }));
+  await user.click(screen.getByRole("tab", { name }));
 };
 
 describe("StaysSettingsPage — the Stays account settings", () => {
@@ -60,7 +69,7 @@ describe("StaysSettingsPage — the Stays account settings", () => {
 
     await screen.findByText("Settings");
     for (const label of ["Profile", "Notifications", "Payout Settings", "Security", "Tax Information", "Team"]) {
-      expect(screen.getByRole("button", { name: label })).toBeTruthy();
+      expect(screen.getByRole("tab", { name: label })).toBeTruthy();
     }
   });
 
@@ -150,5 +159,34 @@ describe("StaysSettingsPage — the Stays account settings", () => {
     await waitFor(() => {
       expect(document.querySelectorAll('input[type="password"]')[0].value).toBe("");
     });
+  });
+
+  it("offers only the tabs the role may open, and falls back from a forbidden one", async () => {
+    // A support member: conversations and their own security tab only.
+    roleState.hasPermission = (permission: string) => permission === "chat.view";
+    renderPage("/stays/settings?tab=profile");
+
+    expect(await screen.findByRole("tab", { name: "Security" })).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "Profile" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Team" })).toBeNull();
+    // The forbidden deep link does not render a panel the role cannot use.
+    expect(await screen.findByText("Change Password")).toBeTruthy();
+  });
+
+  it("shows the sticky save bar only while the profile has unsaved changes", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    // Wait for the profile to finish loading: until `initialForm` is set the
+    // dirty comparison is meaningless and the input is re-rendered underneath.
+    await screen.findAllByDisplayValue("Akwaaba Coast Ltd");
+    expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
+
+    // The page shows the account name twice: once read-only in the identity
+    // block, once in the editable personal form. Type into the editable one.
+    // The first textbox is the editable Full Name in the personal form.
+    const name = screen.getAllByRole("textbox")[0] as HTMLInputElement;
+    await user.type(name, " Jr");
+    expect(await screen.findByRole("button", { name: "Save changes" })).toBeTruthy();
   });
 });
