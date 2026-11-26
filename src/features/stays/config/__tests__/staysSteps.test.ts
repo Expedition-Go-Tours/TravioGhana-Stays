@@ -8,8 +8,8 @@ import {
 } from '../staysSteps';
 
 describe('staysSteps model', () => {
-  it('keeps seventeen steps across the five working sections', () => {
-    expect(STAYS_BUILDER_STEP_COUNT).toBe(17);
+  it('keeps sixteen steps across the five working sections', () => {
+    expect(STAYS_BUILDER_STEP_COUNT).toBe(16);
     expect(STAYS_SECTIONS.map((section) => section.label)).toEqual([
       'Basic Information',
       'Photos',
@@ -28,7 +28,7 @@ describe('staysSteps model', () => {
       preBuilder: true,
     });
     expect(STAYS_BUILDER_STEPS.at(-1)).toMatchObject({
-      id: 17,
+      id: 16,
       label: 'Open for bookings',
       stepId: 'review',
       sectionId: 'review-submit',
@@ -45,32 +45,32 @@ describe('staysSteps model', () => {
     });
   });
 
-  it('orders Basic Information as category · location · channel manager', () => {
+  it('orders Basic Information as category · location', () => {
     const basic = STAYS_BUILDER_STEPS.filter(
       (step) => step.sectionId === 'basic-information',
     ).map((step) => step.stepId);
-    expect(basic).toEqual(['category', 'location', 'channel-manager']);
+    expect(basic).toEqual(['category', 'location']);
   });
 
-  it('makes Photos step 4, Languages step 5 and House rules step 6', () => {
+  it('makes Photos step 3, Languages step 4 and House rules step 5', () => {
     const photos = STAYS_BUILDER_STEPS.find((step) => step.stepId === 'photos');
     const languages = STAYS_BUILDER_STEPS.find((step) => step.stepId === 'languages');
     const houseRules = STAYS_BUILDER_STEPS.find((step) => step.stepId === 'house-rules');
     const identity = STAYS_BUILDER_STEPS.find((step) => step.stepId === 'identity');
-    expect(photos).toMatchObject({ id: 4, sectionId: 'photos' });
+    expect(photos).toMatchObject({ id: 3, sectionId: 'photos' });
     expect(languages).toMatchObject({
-      id: 5,
+      id: 4,
       sectionId: 'property-setup',
       hideHeader: true,
       hideFooter: true,
     });
     expect(houseRules).toMatchObject({
-      id: 6,
+      id: 5,
       sectionId: 'property-setup',
       hideHeader: true,
       hideFooter: true,
     });
-    expect(identity).toMatchObject({ id: 7, sectionId: 'property-setup' });
+    expect(identity).toMatchObject({ id: 6, sectionId: 'property-setup' });
   });
 
   it('gives every step a unique id and URL slug', () => {
@@ -104,26 +104,27 @@ describe('getStaysStepIndex', () => {
   it('resolves a section/step pair to its zero-based index', () => {
     expect(getStaysStepIndex('basic-information', 'category')).toBe(0);
     expect(getStaysStepIndex('basic-information', 'location')).toBe(1);
-    expect(getStaysStepIndex('basic-information', 'channel-manager')).toBe(2);
-    expect(getStaysStepIndex('photos', 'photos')).toBe(3);
-    expect(getStaysStepIndex('property-setup', 'languages')).toBe(4);
-    expect(getStaysStepIndex('property-setup', 'house-rules')).toBe(5);
-    expect(getStaysStepIndex('property-setup', 'identity')).toBe(6);
-    expect(getStaysStepIndex('property-setup', 'host-profile')).toBe(7);
-    expect(getStaysStepIndex('property-setup', 'property-details')).toBe(8);
-    expect(getStaysStepIndex('property-setup', 'amenities')).toBe(9);
-    expect(getStaysStepIndex('property-setup', 'services')).toBe(10);
-    expect(getStaysStepIndex('property-setup', 'booking-preference')).toBe(11);
-    expect(getStaysStepIndex('property-setup', 'payments')).toBe(12);
-    expect(getStaysStepIndex('pricing-calendar', 'price-per-night')).toBe(13);
-    expect(getStaysStepIndex('pricing-calendar', 'rates')).toBe(14);
-    expect(getStaysStepIndex('pricing-calendar', 'availability')).toBe(15);
-    expect(getStaysStepIndex('review-submit', 'review')).toBe(16);
+    expect(getStaysStepIndex('photos', 'photos')).toBe(2);
+    expect(getStaysStepIndex('property-setup', 'languages')).toBe(3);
+    expect(getStaysStepIndex('property-setup', 'house-rules')).toBe(4);
+    expect(getStaysStepIndex('property-setup', 'identity')).toBe(5);
+    expect(getStaysStepIndex('property-setup', 'host-profile')).toBe(6);
+    expect(getStaysStepIndex('property-setup', 'property-details')).toBe(7);
+    expect(getStaysStepIndex('property-setup', 'amenities')).toBe(8);
+    expect(getStaysStepIndex('property-setup', 'services')).toBe(9);
+    expect(getStaysStepIndex('property-setup', 'booking-preference')).toBe(10);
+    expect(getStaysStepIndex('property-setup', 'payments')).toBe(11);
+    expect(getStaysStepIndex('pricing-calendar', 'price-per-night')).toBe(12);
+    expect(getStaysStepIndex('pricing-calendar', 'rates')).toBe(13);
+    expect(getStaysStepIndex('pricing-calendar', 'availability')).toBe(14);
+    expect(getStaysStepIndex('review-submit', 'review')).toBe(15);
   });
 
   it('falls back to the first step for unknown or missing slugs', () => {
     expect(getStaysStepIndex('nope', 'nope')).toBe(0);
     expect(getStaysStepIndex(null, null)).toBe(0);
     expect(getStaysStepIndex('getting-started', '')).toBe(0);
+    // The channel manager step was removed from the builder.
+    expect(getStaysStepIndex('basic-information', 'channel-manager')).toBe(0);
   });
 });

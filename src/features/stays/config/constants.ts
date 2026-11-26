@@ -521,10 +521,15 @@ export const HOST_PROFILE_FOCUS = [
 
 /* ── Payments & the closing agreement ────────────────────────────────────── */
 
-export const PAYMENT_MODES = [
-  "Online when they book",
-  "By card or mobile money at the property",
-];
+export const PAYMENT_MODES = ["Online when they book"];
+
+/**
+ * A draft saved before a payment mode was removed may still carry the old
+ * value; treat anything unsupported as the only mode TravioGhana accepts.
+ */
+export function normalizePaymentMode(mode?: string | null) {
+  return mode && PAYMENT_MODES.includes(mode) ? mode : PAYMENT_MODES[0];
+}
 
 export const OPEN_FOR_BOOKINGS_WINDOWS = ["3 months", "6 months", "12 months", "18 months"];
 

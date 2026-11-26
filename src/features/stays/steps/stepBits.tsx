@@ -1,8 +1,8 @@
 /**
- * Shared furniture for the builder steps — the subsection heading, the green
- * "notice" block and the quiet review note, plus the checkbox/radio choices
- * the Booking-style questions use. Values follow the portal's conventions
- * (emerald notice on emerald-50, slate captions).
+ * Shared furniture for the builder steps — the subsection heading, the
+ * pointed "notice" block and the quiet review note, plus the checkbox/radio
+ * choices the Booking-style questions use. Values follow the portal's
+ * conventions.
  */
 
 export function Subhead({ children }) {
@@ -11,11 +11,9 @@ export function Subhead({ children }) {
 
 export function Notice({ title, children }) {
   return (
-    <div className="mb-5 rounded-xl border border-emerald-100 bg-emerald-50/60 px-5 py-4">
-      <strong className="text-sm font-semibold text-emerald-900">{title}</strong>
-      {children && (
-        <p className="mt-1 text-sm leading-relaxed text-emerald-800/80">{children}</p>
-      )}
+    <div className="relative mb-5 mt-8 rounded-[2px] border border-warning/30 bg-warning-soft px-5 py-4 text-sm leading-relaxed text-ink before:absolute before:-top-[6px] before:left-10 before:h-3 before:w-3 before:rotate-45 before:border-l before:border-t before:border-warning/30 before:bg-warning-soft">
+      <strong className="block text-sm font-semibold text-ink">{title}</strong>
+      {children && <p className="mt-1 text-sm leading-relaxed text-ink/80">{children}</p>}
     </div>
   );
 }

@@ -6,8 +6,7 @@ import { controlClasses } from "./variants";
 
 /**
  * Custom dropdown (Radix Select): keyboard and screen-reader support built in,
- * styled to match the text inputs. On phones prefer `NativeSelect` for long
- * lists — the platform picker is easier to scroll.
+ * styled to match the text inputs and portaled above dialogs and sheets.
  */
 const Select = SelectPrimitive.Root;
 const SelectGroup = SelectPrimitive.Group;
@@ -39,13 +38,16 @@ const SelectTrigger = forwardRef<
 const SelectContent = forwardRef<
   ElementRef<typeof SelectPrimitive.Content>,
   ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(function SelectContent({ className, children, position = "popper", ...props }, ref) {
+>(function SelectContent(
+  { className, children, position = "popper", sideOffset = 4, collisionPadding = 8, ...props },
+  ref,
+) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
         ref={ref}
         className={cn(
-          "relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-[8rem] overflow-hidden",
+          "relative z-(--z-popover) max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-[8rem] overflow-hidden",
           "rounded-xl border border-hairline bg-surface-raised text-ink shadow-lg",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
@@ -54,13 +56,14 @@ const SelectContent = forwardRef<
           className,
         )}
         position={position}
+        sideOffset={sideOffset}
+        collisionPadding={collisionPadding}
         {...props}
       >
         <SelectPrimitive.Viewport
           className={cn(
-            "p-1.5",
-            position === "popper" &&
-              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+            "max-h-[inherit] overflow-y-auto p-1.5",
+            position === "popper" && "w-full min-w-[var(--radix-select-trigger-width)]",
           )}
         >
           {children}

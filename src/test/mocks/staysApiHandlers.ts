@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { config } from '@/config';
 import { staysMock } from '@/features/stays/mock/store';
 
 /**
@@ -13,7 +14,7 @@ import { staysMock } from '@/features/stays/mock/store';
  *
  * Not installed globally: tests opt in with `server.use(...staysApiHandlers())`.
  */
-const API = 'https://api.travioghana.com/api';
+const API = config.api.baseURL.replace(/\/$/, '');
 const S = `${API}/travioghana/supplier/stays`;
 const SUPPLIER = `${API}/travioghana/supplier`;
 
@@ -123,11 +124,21 @@ export function staysApiHandlers() {
     ),
     http.get(`${S}/verification`, async () => envelope(await staysMock.getVerification())),
 
-    http.get(`${API}/chat/conversations`, async () => envelope({ conversations: await staysMock.listConversations() })),
-    http.get(`${API}/chat/conversations/:id/messages`, async ({ params }) =>
+    http.get(`${S}/conversations`, async ({ request }) => {
+      if (new URL(request.url).searchParams.get('domain') !== 'stays') {
+        return HttpResponse.json({ message: 'domain=stays is required' }, { status: 400 });
+      }
+      return envelope({ conversations: await staysMock.listConversations() });
+    }),
+    http.get(`${S}/conversations/:id/messages`, async ({ params }) =>
       envelope(await staysMock.listConversationMessages({ conversationId: String(params.id) })),
     ),
-    http.get(`${SUPPLIER}/notifications`, async () => envelope(await staysMock.listNotifications())),
+    http.get(`${S}/notifications`, async ({ request }) => {
+      if (new URL(request.url).searchParams.get('domain') !== 'stays') {
+        return HttpResponse.json({ message: 'domain=stays is required' }, { status: 400 });
+      }
+      return envelope(await staysMock.listNotifications());
+    }),
 
     http.get(`${API}/users/me`, async () => envelope({ user: { id: 'u1', ...(await staysMock.getAccount()).user } })),
     http.get(`${SUPPLIER}/settings/business-profile`, async () => envelope((await staysMock.getAccount()).business)),

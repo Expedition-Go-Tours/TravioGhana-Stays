@@ -139,6 +139,13 @@ describe("PropertyDetailsView", () => {
     expect(screen.getByRole("link", { name: /Open in Google Maps/ })).toBeTruthy();
   });
 
+  it("shows online payment for a draft saved with the removed payment mode", () => {
+    renderView({ overrides: { payments: { mode: "By card or mobile money at the property" } } });
+
+    expect(screen.getByText("Online when they book")).toBeTruthy();
+    expect(screen.queryByText("By card or mobile money at the property")).toBeNull();
+  });
+
   it("renders the overview facts in the summary card", () => {
     renderView();
 
@@ -264,7 +271,6 @@ describe("PropertyDetailsView", () => {
       ["Edit type and category", "/stays/properties/build?draft=prop-1"],
       ["Edit booking type", "/stays/properties/build?draft=prop-1"],
       ["Edit listing scope", "/stays/properties/build?draft=prop-1"],
-      ["Edit channel manager", "/stays/properties/build/prop-1?section=basic-information&step=channel-manager"],
       ["Edit booking preference", "/stays/properties/build/prop-1?section=property-setup&step=booking-preference"],
       ["Edit payments", "/stays/properties/build/prop-1?section=property-setup&step=payments"],
       ["Edit nightly price", "/stays/properties/build/prop-1?section=pricing-calendar&step=price-per-night"],

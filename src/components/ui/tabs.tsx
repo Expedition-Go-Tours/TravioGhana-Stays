@@ -37,7 +37,7 @@ const LIST = {
 const TRIGGER = {
   underline: cn(
     "relative h-11 px-3 text-sm font-semibold text-muted hover:text-ink",
-    "after:absolute after:inset-x-3 after:-bottom-px after:h-0.5 after:rounded-full after:bg-transparent",
+    "after:absolute after:inset-x-3 after:-bottom-px after:h-0.5 after:rounded-full after:bg-transparent after:transition-colors after:duration-200",
     "data-[state=active]:text-ink data-[state=active]:after:bg-brand",
   ),
   pill: cn(
@@ -45,6 +45,14 @@ const TRIGGER = {
     "data-[state=active]:bg-surface data-[state=active]:text-ink data-[state=active]:shadow-xs",
   ),
 } as const;
+
+/**
+ * Radix unmounts the inactive panels, so the selected panel is inserted fresh
+ * on every switch. A short fade and lift makes that swap read as a transition
+ * instead of a jump; reduced-motion users get the instant version.
+ */
+export const TAB_PANEL_TRANSITION =
+  "data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-1 data-[state=active]:duration-200 motion-reduce:data-[state=active]:animate-none";
 
 /** Horizontal scroller with fade edges when content overflows. */
 export function ScrollFade({ className, children }: { className?: string; children: ReactNode }) {

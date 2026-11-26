@@ -22,6 +22,8 @@
 import api from "@/lib/axios";
 import { config } from "@/config";
 import { staysMock } from "./mock/store";
+import { isoDaysBetween, shiftISODays, weekdayOf } from "./utils/dates";
+import { applyCopyAdjustment, copyDatePairs, type CopyRateAdjustment } from "./utils/copyRates";
 import type {
   AnalyticsSummary,
   Availability,
@@ -247,6 +249,142 @@ export async function clearAvailabilityCell(
     params: { roomId, date },
   });
   return res.data?.data;
+}
+
+async function writeAvailabilityCells(
+  propertyId: string,
+  cells: Array<{ roomId: string; date: string; values: AvailabilityOverride }>,
+): Promise<number> {
+  let written = 0;
+  for (let index = 0; index < cells.length; index += 8) {
+    const chunk = cells.slice(index, index + 8);
+    await Promise.all(
+      chunk.map(({ roomId, date, values }) =>
+        api.put(
+          `${BASE}/properties/${propertyId}/availability`,
+          { roomId, date, ...values },
+          requestConfig,
+        ),
+      ),
+    );
+    written += chunk.length;
+  }
+  return written;
+}
+
+/** Applies the same availability values to every selected room/date. */
+export async function setAvailabilityRange(
+  propertyId: string,
+  {
+    roomIds,
+    from,
+    to,
+    weekdays,
+    values,
+  }: { roomIds: string[]; from: string; to: string; weekdays?: number[]; values: AvailabilityOverride },
+): Promise<{ cells: number }> {
+  if (staysUsesMockData) return staysMock.setAvailabilityRange(propertyId, { roomIds, from, to, weekdays, values });
+
+  const days = isoDaysBetween(from, to).filter(
+    (date) => !weekdays || weekdays.includes(weekdayOf(date)),
+  );
+  const cells = roomIds.flatMap((roomId) =>
+    days.map((date) => ({ roomId, date, values })),
+  );
+  return { cells: await writeAvailabilityCells(propertyId, cells) };
+}
+
+export type CopyAvailabilityFields = {
+  price?: boolean;
+  count?: boolean;
+  minStay?: boolean;
+  maxStay?: boolean;
+  closed?: boolean;
+  closedArrival?: boolean;
+  closedDeparture?: boolean;
+};
+
+/** Copies selected availability fields from one date range to a target range. */
+export async function copyAvailabilityRange(
+  propertyId: string,
+  {
+    roomIds,
+    from,
+    to,
+    targetFrom,
+    targetTo,
+    weekdays,
+    fields = {},
+    adjustment = null,
+    overwrite = true,
+  }: {
+    roomIds: string[];
+    from: string;
+    to: string;
+    targetFrom: string;
+    targetTo?: string;
+    weekdays?: number[];
+    fields?: CopyAvailabilityFields;
+    adjustment?: CopyRateAdjustment | null;
+    overwrite?: boolean;
+  },
+): Promise<{ cells: number }> {
+  if (staysUsesMockData) {
+    return staysMock.copyAvailabilityRange(propertyId, {
+      roomIds,
+      from,
+      to,
+      targetFrom,
+      targetTo,
+      weekdays,
+      fields,
+      adjustment,
+      overwrite,
+    });
+  }
+
+  const sourceDays = isoDaysBetween(from, to);
+  if (!sourceDays.length || !targetFrom) return { cells: 0 };
+  const targetRangeTo = targetTo || shiftISODays(targetFrom, sourceDays.length - 1);
+  const [{ overrides }, property, targetAvailability] = await Promise.all([
+    getAvailability(propertyId, { from, to }),
+    getProperty(propertyId),
+    overwrite ? Promise.resolve(null) : getAvailability(propertyId, { from: targetFrom, to: targetRangeTo }),
+  ]);
+
+  const selected = {
+    price: fields.price !== false,
+    count: fields.count !== false,
+    minStay: Boolean(fields.minStay),
+    maxStay: Boolean(fields.maxStay),
+    closed: Boolean(fields.closed),
+    closedArrival: Boolean(fields.closedArrival),
+    closedDeparture: Boolean(fields.closedDeparture),
+  };
+  const rooms = property.rooms.filter((room) => roomIds.includes(room.id));
+  const targetOverrides = targetAvailability?.overrides ?? {};
+  const pairs = copyDatePairs({ from, to, targetFrom, targetTo: targetRangeTo, weekdays });
+  const cells: Array<{ roomId: string; date: string; values: AvailabilityOverride }> = [];
+
+  for (const room of rooms) {
+    for (const { source: sourceDate, target: date } of pairs) {
+      if (!overwrite && targetOverrides[`${room.id}|${date}`]) continue;
+      const source = overrides[`${room.id}|${sourceDate}`] || {};
+      const values: AvailabilityOverride = {};
+      if (selected.price) {
+        values.price = applyCopyAdjustment(source.price ?? room.price, adjustment);
+      }
+      if (selected.count) values.count = source.count ?? room.count;
+      if (selected.minStay) values.minStay = source.minStay ?? 1;
+      if (selected.maxStay) values.maxStay = source.maxStay ?? 30;
+      if (selected.closed) values.closed = Boolean(source.closed);
+      if (selected.closedArrival) values.closedArrival = Boolean(source.closedArrival);
+      if (selected.closedDeparture) values.closedDeparture = Boolean(source.closedDeparture);
+      cells.push({ roomId: room.id, date, values });
+    }
+  }
+
+  return { cells: await writeAvailabilityCells(propertyId, cells) };
 }
 
 /* ── Bookings ────────────────────────────────────────────────────────────── */

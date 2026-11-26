@@ -2,19 +2,30 @@
  * The payments & invoicing step patches the payment mode and the invoicing
  * details; the invoice address only appears when it differs from the property.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import Step12Payments from "../Step12Payments";
 import { PAYMENT_MODES } from "../../config/constants";
 
 describe("Step12Payments", () => {
-  it("reports the payment mode", async () => {
-    const user = userEvent.setup();
-    const patch = vi.fn();
-    render(<Step12Payments property={{}} patch={patch} />);
-    await user.click(screen.getByLabelText(PAYMENT_MODES[1]));
-    expect(patch).toHaveBeenCalledWith({ payments: { mode: PAYMENT_MODES[1] } });
+  it("offers online payment as the only payment mode", () => {
+    render(<Step12Payments property={{}} patch={() => {}} />);
+
+    expect(screen.getAllByRole("radio")).toHaveLength(1);
+    expect(screen.getByLabelText(PAYMENT_MODES[0])).toBeChecked();
+    expect(screen.queryByText("By card or mobile money at the property")).toBeNull();
+  });
+
+  it("falls back to online for drafts saved with the removed mode", () => {
+    render(
+      <Step12Payments
+        property={{ payments: { mode: "By card or mobile money at the property" } }}
+        patch={() => {}}
+      />,
+    );
+
+    expect(screen.getByLabelText(PAYMENT_MODES[0])).toBeChecked();
+    expect(screen.queryByText("By card or mobile money at the property")).toBeNull();
   });
 
   it("reveals the invoice address when it differs from the property", () => {

@@ -42,10 +42,10 @@ describe("settings helpers", () => {
   });
 
   it("exports the visible columns with readable values", () => {
-    const csv = settingsCsv([ROW], ["id", "property", "rewards", "minimumStay", "localRates", "listingScore"]);
+    const csv = settingsCsv([ROW], ["property", "rewards", "minimumStay", "localRates", "listingScore"]);
     const lines = csv.split("\r\n");
-    expect(lines[0]).toBe("ID,Property,Travio Rewards,Minimum stay,Local rates,Listing score");
-    expect(lines[1]).toBe("p1,Akwaaba Coast Hotel — Accra,Eligible,7 nights,Not set,64%");
+    expect(lines[0]).toBe("Property,Travio Rewards,Minimum stay,Local rates,Listing score");
+    expect(lines[1]).toBe("Akwaaba Coast Hotel — Accra,Eligible,7 nights,Not set,64%");
   });
 
   it("can export every settings column", () => {

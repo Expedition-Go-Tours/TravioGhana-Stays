@@ -14,6 +14,7 @@
 const BACKEND_TYPE_TO_UI = {
   BOOKING_CONFIRMED: "booking",
   BOOKING_CANCELLED: "booking",
+  BOOKING_CREATED_BY_SUPPLIER: "booking",
   BOOKING_STATUS_UPDATED: "booking",
   BOOKING_MODIFIED: "booking",
   BOOKING_AWAITING_CONFIRMATION: "booking",
@@ -102,6 +103,7 @@ function getStaysNotificationRoute(type, data = {}) {
   switch (type) {
     case "BOOKING_CONFIRMED":
     case "BOOKING_CANCELLED":
+    case "BOOKING_CREATED_BY_SUPPLIER":
     case "BOOKING_STATUS_UPDATED":
     case "BOOKING_MODIFIED":
     case "BOOKING_PAYMENT_FAILED":

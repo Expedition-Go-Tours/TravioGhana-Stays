@@ -322,6 +322,38 @@
     text-rendering: optimizeLegibility;
   }
 
+  /*
+   * Radix Select/Popover/Dialog use `react-remove-scroll`, which normally
+   * hides the page scrollbar while an overlay is open. Keep the gutter reserved
+   * permanently and keep the bar itself visible during a lock — the page still
+   * cannot scroll, but the layout never jumps and the bar never disappears.
+   * The extra `html` prefix outranks react-remove-scroll's injected
+   * `body[data-scroll-locked] { overflow: hidden !important }`.
+   */
+  html,
+  body {
+    scrollbar-gutter: stable;
+  }
+  html body[data-scroll-locked],
+  html body.with-scroll-bars-hidden {
+    overflow-y: scroll !important;
+    padding-right: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  /*
+   * Radix hides the scrollbar inside its Select viewport. Long menus (rate
+   * plans, countries, properties) still need a visible scroll position.
+   */
+  html [data-radix-select-viewport] {
+    scrollbar-width: thin !important;
+    -ms-overflow-style: auto !important;
+  }
+  html [data-radix-select-viewport]::-webkit-scrollbar {
+    display: block !important;
+    width: 8px !important;
+  }
+
   h1,
   h2,
   h3,
@@ -437,294 +469,4 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-/* ── react-datepicker — dashboard theme (token based) ─────────────────────── */
-
-.react-datepicker {
-  background-color: var(--color-surface-raised);
-  color: var(--color-ink);
-  border-color: var(--color-hairline);
-}
-
-.dashboard-date-picker--field {
-  position: relative;
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.dashboard-date-picker--field .react-datepicker-wrapper,
-.dashboard-date-picker--field .react-datepicker__input-container {
-  display: block;
-  width: 100%;
-  min-width: 0;
-}
-
-.dashboard-date-picker--field.w-full,
-.dashboard-date-picker--field.w-full .react-datepicker-wrapper,
-.dashboard-date-picker--field.w-full .react-datepicker__input-container {
-  width: 100%;
-}
-
-.dashboard-date-picker__input {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  min-height: 2.75rem;
-  padding: 0.625rem 2.5rem 0.625rem 0.75rem;
-  border: 1px solid var(--color-hairline-strong);
-  border-radius: var(--radius-control);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  color: var(--color-ink);
-  background: var(--color-surface);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-  box-sizing: border-box;
-}
-
-.dashboard-date-picker__input--sm {
-  padding-left: 0.75rem;
-}
-
-.dashboard-date-picker__input--md {
-  padding-left: 1rem;
-}
-
-.dashboard-date-picker__input:focus {
-  outline: none;
-  border-color: var(--color-brand);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-ring) 22%, transparent);
-}
-
-.dashboard-date-picker__input--error {
-  border-color: var(--color-danger);
-}
-
-.dashboard-date-picker__input--error:focus {
-  border-color: var(--color-danger);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-danger) 18%, transparent);
-}
-
-.dashboard-date-picker__icon {
-  position: absolute;
-  right: 0.875rem;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.dashboard-date-picker--inline {
-  width: 100%;
-}
-
-.dashboard-date-picker--inline .react-datepicker-wrapper,
-.dashboard-date-picker--inline .react-datepicker {
-  width: 100%;
-}
-
-.dashboard-date-picker--inline .react-datepicker {
-  border: none;
-  font-family: inherit;
-}
-
-.dashboard-date-picker--inline .react-datepicker__month-container {
-  width: 100%;
-  float: none;
-}
-
-.dashboard-date-picker--inline .react-datepicker__month {
-  margin: 0;
-}
-
-.dashboard-date-picker--inline .react-datepicker__week {
-  display: flex;
-  justify-content: space-between;
-}
-
-.dashboard-date-picker--inline .react-datepicker__day-names {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.25rem;
-}
-
-.dashboard-date-picker--inline .react-datepicker__day-name,
-.dashboard-date-picker--inline .react-datepicker__day {
-  flex: 1 1 0;
-  width: auto;
-  max-width: none;
-  margin: 0.125rem;
-}
-
-.dashboard-date-picker__popper {
-  z-index: var(--z-popover);
-  width: auto !important;
-}
-
-.dashboard-date-picker__popper .react-datepicker,
-.dashboard-date-picker__popper .dashboard-date-picker__calendar {
-  min-width: 20rem;
-  width: 20rem;
-  padding: 0.25rem 0.5rem 0.75rem;
-  box-sizing: border-box;
-}
-
-.dashboard-date-picker__calendar,
-.dashboard-date-picker__popper .react-datepicker {
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-md);
-  overflow: hidden;
-  font-family: inherit;
-}
-
-.dashboard-date-picker__popper .react-datepicker__month-container {
-  float: none;
-  width: 100%;
-}
-
-.dashboard-date-picker__popper .react-datepicker__month {
-  margin: 0.25rem 0 0;
-}
-
-.dashboard-date-picker__popper .react-datepicker__header {
-  padding-bottom: 0.5rem;
-}
-
-.dashboard-date-picker .react-datepicker__header {
-  background: var(--color-surface-soft);
-  border-bottom: 1px solid var(--color-hairline);
-  padding-top: 0.75rem;
-}
-
-.dashboard-date-picker .react-datepicker__current-month {
-  color: var(--color-ink);
-  font-family: var(--font-display);
-  font-weight: 700;
-}
-
-.dashboard-date-picker .react-datepicker__day-name {
-  color: var(--color-muted);
-  font-weight: 600;
-  line-height: 2.25rem;
-  margin: 0.125rem;
-  text-transform: uppercase;
-  font-size: 0.6875rem;
-}
-
-.dashboard-date-picker__popper .react-datepicker__day-name,
-.dashboard-date-picker__popper .react-datepicker__day {
-  width: 2.25rem;
-  height: 2.25rem;
-  line-height: 2.25rem;
-  margin: 0.125rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.dashboard-date-picker .react-datepicker__day {
-  border-radius: 0.5rem;
-  color: var(--color-ink);
-}
-
-.dashboard-date-picker .react-datepicker__day:hover {
-  background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
-}
-
-.dashboard-date-picker .react-datepicker__day--selected,
-.dashboard-date-picker .react-datepicker__day--keyboard-selected {
-  background: var(--color-brand);
-  color: var(--color-on-brand);
-}
-
-.dashboard-date-picker .react-datepicker__day--selected:hover,
-.dashboard-date-picker .react-datepicker__day--keyboard-selected:hover {
-  background: var(--color-brand-hover);
-  color: var(--color-on-brand);
-}
-
-.dashboard-date-picker .react-datepicker__day--outside-month {
-  color: var(--color-subtle);
-}
-
-.dashboard-date-picker .react-datepicker__day--today {
-  font-weight: 700;
-  position: relative;
-}
-
-.dashboard-date-picker .react-datepicker__day--today::after {
-  content: '';
-  position: absolute;
-  bottom: 2px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--color-brand-ink);
-}
-
-.dashboard-date-picker .react-datepicker__day--disabled {
-  color: var(--color-slate-300) !important;
-  cursor: not-allowed !important;
-  text-decoration: line-through;
-}
-
-.dashboard-date-picker .react-datepicker__navigation-icon::before {
-  border-color: var(--color-muted);
-}
-
-.dashboard-date-picker .react-datepicker__triangle {
-  display: none;
-}
-
-.dashboard-date-picker .availability-day-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.125rem;
-  min-height: 2.75rem;
-  width: 100%;
-}
-
-.dashboard-date-picker--inline .react-datepicker__day {
-  min-height: 3.75rem;
-  display: inline-flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 0.375rem;
-}
-
-@media (min-width: 640px) {
-  .dashboard-date-picker--inline .react-datepicker__day {
-    min-height: 5rem;
-  }
-}
-
-.dashboard-date-picker .availability-day-dot {
-  width: 0.375rem;
-  height: 0.375rem;
-  border-radius: 9999px;
-}
-
-.dashboard-date-picker .availability-day-available .availability-day-dot {
-  background: var(--color-success);
-}
-
-.dashboard-date-picker .availability-day-limited .availability-day-dot {
-  background: var(--color-accent);
-}
-
-.dashboard-date-picker .availability-day-full .availability-day-dot {
-  background: var(--color-danger);
-}
-
-.dashboard-date-picker .availability-day-blocked .availability-day-dot {
-  background: var(--color-subtle);
-}
-
-.dashboard-date-picker .react-datepicker__day--selected .availability-day-dot {
-  background: var(--color-on-brand);
 }

@@ -12,6 +12,7 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
+  TAB_PANEL_TRANSITION,
   UnavailableState,
 } from "@/components/ui";
 import Skeleton from "@/components/shared/Skeleton";
@@ -74,9 +75,10 @@ import {
   settingsCsv,
   settingsCsvFilename,
 } from "../components/dashboard/settingsModel";
-import { fetchStaysDashboard, STAYS_KEYS, staysUsesMockData } from "../api";
+import { fetchStaysDashboard, listProperties, STAYS_KEYS, staysUsesMockData } from "../api";
 import { loadStaysVerification } from "../verification/api";
 import { verificationActionCount, type VerificationPayload } from "../verification/actions";
+import { resolvePropertyPhoto } from "../utils/propertyPhoto";
 
 /**
  * The signed-in landing page: a Booking.com-style group homepage for the
@@ -94,6 +96,8 @@ const ZERO_HAPPENING: DashboardHappeningToday = {
   reviews: 0,
   cancellations: 0,
 };
+
+const TAB_PANEL_CLASS = `space-y-4 pt-4 ${TAB_PANEL_TRANSITION}`;
 
 const number = (value: unknown): number => {
   const parsed = typeof value === "number" ? value : Number(value);
@@ -150,6 +154,23 @@ function normalizeDashboard(data?: DashboardSummary): {
       }));
 
   return { happeningToday, properties };
+}
+
+/** Fill a table row's missing photo from the property list's resolved covers. */
+function attachCoverPhotos<T extends { id: string; photo?: string | null }>(
+  rows: T[],
+  covers: Map<string, string>,
+): T[] {
+  if (covers.size === 0) return rows;
+  let changed = false;
+  const next = rows.map((row) => {
+    if (resolvePropertyPhoto(row)) return row;
+    const photo = covers.get(row.id);
+    if (!photo) return row;
+    changed = true;
+    return { ...row, photo };
+  });
+  return changed ? next : rows;
 }
 
 /** One persisted column/density preference per tab. */
@@ -217,7 +238,32 @@ export default function StaysDashboardPage() {
   const settingsView = useDashboardView("settings", SETTINGS_COLUMN_KEYS);
 
   const operatingData = useMemo(() => normalizeDashboard(dashboard.data), [dashboard.data]);
-  const rows = operatingData.properties;
+  const baseRows = operatingData.properties;
+  // Newer dashboard payloads carry each row's cover. When one is missing, borrow
+  // it from the properties list — the same cache entry the Properties page uses.
+  const needsCoverPhotos = baseRows.some((row) => !resolvePropertyPhoto(row));
+  const propertyCovers = useQuery({
+    queryKey: STAYS_KEYS.properties(),
+    queryFn: () => listProperties(),
+    enabled: baseRows.length > 0 && needsCoverPhotos,
+    staleTime: 60_000,
+  });
+  const coverById = useMemo(() => {
+    const covers = new Map<string, string>();
+    // Start with whatever the dashboard already sent, so a property's cover can
+    // fill the other tabs even when no extra request is needed.
+    for (const row of baseRows) {
+      const photo = resolvePropertyPhoto(row);
+      if (photo) covers.set(row.id, photo);
+    }
+    for (const property of propertyCovers.data ?? []) {
+      if (covers.has(property.id)) continue;
+      const photo = resolvePropertyPhoto(property);
+      if (photo) covers.set(property.id, photo);
+    }
+    return covers;
+  }, [baseRows, propertyCovers.data]);
+  const rows = useMemo(() => attachCoverPhotos(baseRows, coverById), [baseRows, coverById]);
   const performanceData = useMemo(
     () =>
       dashboard.data?.performance ??
@@ -228,8 +274,14 @@ export default function StaysDashboardPage() {
     () => dashboard.data?.settings ?? fallbackSettings(rows),
     [dashboard.data, rows],
   );
-  const performanceRows = useMemo(() => performanceData.properties, [performanceData]);
-  const settingsRows = useMemo(() => settingsData.properties, [settingsData]);
+  const performanceRows = useMemo(
+    () => attachCoverPhotos(performanceData.properties, coverById),
+    [performanceData, coverById],
+  );
+  const settingsRows = useMemo(
+    () => attachCoverPhotos(settingsData.properties, coverById),
+    [settingsData, coverById],
+  );
   const locations = useMemo(() => dashboardLocationOptions(rows), [rows]);
 
   const rawLocation = params.get("location") ?? "all";
@@ -440,7 +492,7 @@ export default function StaysDashboardPage() {
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="operations" className="space-y-4 pt-4">
+        <TabsContent value="operations" className={TAB_PANEL_CLASS}>
           <HappeningToday data={operatingData.happeningToday} canOpen={canOpen} />
           <OperationsToolbar
             status={status}
@@ -467,7 +519,7 @@ export default function StaysDashboardPage() {
         </TabsContent>
 
         {canViewPerformance && (
-          <TabsContent value="performance" className="space-y-4 pt-4">
+          <TabsContent value="performance" className={TAB_PANEL_CLASS}>
             <PerformanceSummary
               summary={performanceSummary}
               previous={sharedFiltersActive ? undefined : performanceData.previous}
@@ -508,7 +560,7 @@ export default function StaysDashboardPage() {
           </TabsContent>
         )}
 
-        <TabsContent value="settings" className="space-y-4 pt-4">
+        <TabsContent value="settings" className={TAB_PANEL_CLASS}>
           <SettingsInsightCard canOpenInsights={canViewPerformance} />
           <div className="flex flex-wrap items-center justify-end gap-1">
             <DashboardViewControls

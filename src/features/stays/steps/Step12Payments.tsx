@@ -1,5 +1,5 @@
 import { StaysField, StaysInput, StaysSelect } from "../components/StaysForm";
-import { PAYMENT_MODES } from "../config/constants";
+import { normalizePaymentMode, PAYMENT_MODES } from "../config/constants";
 import { Footnote, Notice, RadioCards, Subhead } from "./stepBits";
 
 /**
@@ -12,6 +12,7 @@ import { Footnote, Notice, RadioCards, Subhead } from "./stepBits";
  */
 export default function Step12Payments({ property, patch }: any) {
   const payments = property.payments || { mode: PAYMENT_MODES[0] };
+  const paymentMode = normalizePaymentMode(payments.mode);
   const invoicing = property.invoicing || { name: "", legalName: "", sameAddress: true };
 
   const setInvoice = (key) => (event) =>
@@ -23,7 +24,7 @@ export default function Step12Payments({ property, patch }: any) {
       <RadioCards
         name="paymentMode"
         options={PAYMENT_MODES}
-        value={payments.mode || PAYMENT_MODES[0]}
+        value={paymentMode}
         onChange={(value) => patch({ payments: { ...payments, mode: value } })}
         ariaLabel="Payment mode"
       />

@@ -147,7 +147,7 @@ export default function AvailabilityCellPanel({
     <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[70] bg-black/20 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
-        <Dialog.Content className="fixed inset-y-0 right-0 z-[71] flex w-full max-w-sm flex-col bg-white shadow-2xl outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-right">
+        <Dialog.Content className="fixed inset-x-0 bottom-0 z-[71] flex max-h-[92dvh] flex-col rounded-t-2xl bg-white shadow-2xl outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom sm:inset-y-0 sm:left-auto sm:right-0 sm:max-h-none sm:w-full sm:max-w-sm sm:rounded-none sm:data-[state=open]:slide-in-from-right">
           {/* Status accent bar */}
           <div className={cn("h-1.5 shrink-0", cfg.accent)} />
 

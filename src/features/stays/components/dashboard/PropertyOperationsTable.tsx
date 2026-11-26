@@ -45,7 +45,6 @@ function PropertyCard({
       <div className="flex items-start justify-between gap-3">
         <DashboardPropertyIdentity row={row} canOpen={canOpenProperty} />
         <div className="flex shrink-0 flex-col items-end gap-1">
-          <span className="font-mono text-caption text-muted">{row.id}</span>
           <PropertyStatus row={row} />
         </div>
       </div>
@@ -112,7 +111,6 @@ export default function PropertyOperationsTable({
   canOpenChat: boolean;
 }) {
   const cellByKey: Record<DashboardColumnKey, DataColumn<DashboardPropertyRow>["cell"]> = {
-    id: (row) => <span className="font-mono text-caption text-muted">{row.id}</span>,
     property: (row) => <DashboardPropertyIdentity row={row} canOpen={canOpenProperty} />,
     status: (row) => <PropertyStatus row={row} />,
     arrivalsNext48h: (row) => <CountCell value={row.arrivalsNext48h} />,
@@ -138,8 +136,8 @@ export default function PropertyOperationsTable({
     key: column.key,
     header: column.label,
     cell: cellByKey[column.key],
-    sortable: column.key === "id",
-    className: column.key === "id" ? "w-16" : undefined,
+    sortable: column.key === "property",
+    sortValue: column.key === "property" ? (row) => row.name : undefined,
   }));
 
   return (
@@ -148,7 +146,6 @@ export default function PropertyOperationsTable({
       columns={columns}
       rows={rows}
       density={density}
-      initialSort={{ key: "id", direction: "asc" }}
       getRowKey={(row) => row.id}
       renderCard={(row) => (
         <PropertyCard row={row} canOpenProperty={canOpenProperty} canOpenChat={canOpenChat} />

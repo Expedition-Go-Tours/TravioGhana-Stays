@@ -1,5 +1,6 @@
-import { Button, Input, NativeSelect } from "@/components/ui";
+import { Button, Input } from "@/components/ui";
 import { Search } from "@/features/stays/icons";
+import { StaysSelect } from "../StaysForm";
 import type { DashboardLocationOption } from "./dashboardModel";
 
 /**
@@ -30,22 +31,17 @@ export default function DashboardFilters({
         <label htmlFor="dashboard-location" className="mb-1.5 block text-caption font-semibold text-muted">
           Filter by location
         </label>
-        <NativeSelect
+        <StaysSelect
           id="dashboard-location"
+          options={locations}
           value={location}
           onChange={(event) => onLocationChange(event.target.value)}
-        >
-          {locations.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </NativeSelect>
+        />
       </div>
 
       <div className="min-w-0 sm:min-w-64 sm:max-w-sm sm:flex-1">
         <label htmlFor="dashboard-search" className="mb-1.5 block text-caption font-semibold text-muted">
-          Filter by property ID or name
+          Filter by property name
         </label>
         <Input
           id="dashboard-search"

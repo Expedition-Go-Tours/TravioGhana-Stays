@@ -24,7 +24,6 @@ export const PERFORMANCE_COMPARISON_OPTIONS: { value: DashboardPerformanceCompar
 ];
 
 export type PerformanceColumnKey =
-  | "id"
   | "property"
   | "bookedAvgDailyRate"
   | "stayedAvgDailyRate"
@@ -43,7 +42,6 @@ export type PerformanceColumn = {
 };
 
 export const PERFORMANCE_COLUMNS: PerformanceColumn[] = [
-  { key: "id", label: "ID", mandatory: true },
   { key: "property", label: "Property", mandatory: true },
   { key: "bookedAvgDailyRate", label: "Booked avg. daily rate" },
   { key: "stayedAvgDailyRate", label: "Stayed avg. daily rate" },

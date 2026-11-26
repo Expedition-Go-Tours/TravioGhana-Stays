@@ -32,7 +32,6 @@ import {
   STAYS_KEYS,
 } from "../api";
 import Step01Location from "../steps/Step01Location";
-import Step02ChannelManager from "../steps/Step02ChannelManager";
 import Step03Photos from "../steps/Step03Photos";
 import Step04Languages from "../steps/Step04Languages";
 import Step05HouseRules from "../steps/Step05HouseRules";
@@ -50,7 +49,6 @@ import Step16Review from "../steps/Step16Review";
 
 const STEP_COMPONENTS = [
   Step01Location,
-  Step02ChannelManager,
   Step03Photos,
   Step04Languages,
   Step05HouseRules,
@@ -142,8 +140,8 @@ export default function PropertyBuilderPage() {
   const stepMeta = STAYS_BUILDER_STEPS[stepIndex];
   const completedCount = Math.min(draft?.step || 0, STAYS_BUILDER_STEP_COUNT);
   // Full-bleed steps own the content area (the location map) and hide the
-  // builder footer; steps with their own heading/footer (the channel manager)
-  // skip the standard chrome so the reference layout isn't doubled up.
+  // builder footer; steps with their own heading/footer skip the standard
+  // chrome so the reference layout isn't doubled up.
   const isFullBleedStep = Boolean(stepMeta?.fullBleed);
   const showStepHeader = !isFullBleedStep && !stepMeta?.hideHeader;
   const showBuilderFooter = !isFullBleedStep && !stepMeta?.hideFooter;

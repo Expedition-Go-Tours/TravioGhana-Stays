@@ -44,7 +44,7 @@
     "libphonenumber-js": "^1.13.9",
     "maplibre-gl": "^6.11.2",
     "react": "^19.2.6",
-    "react-datepicker": "^9.1.0",
+    "react-day-picker": "^9.14.0",
     "react-dom": "^19.2.6",
     "react-phone-number-input": "^3.4.17",
     "react-router-dom": "^7.15.1",

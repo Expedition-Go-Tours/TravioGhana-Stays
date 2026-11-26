@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { Buildings, MapPin } from "@/features/stays/icons";
+import OptimizedImage from "@/components/shared/OptimizedImage";
 import { cn } from "@/lib/utils";
+import { resolvePropertyPhoto } from "../../utils/propertyPhoto";
 
 type PropertyIdentity = {
   id: string;
@@ -8,11 +10,13 @@ type PropertyIdentity = {
   city: string;
   region: string;
   photo?: string | null;
+  coverPhoto?: string | null;
+  photos?: unknown;
 };
 
-const THUMB = "h-10 w-10 shrink-0 rounded-lg";
+const THUMB = "h-10 w-14 shrink-0 rounded-lg";
 
-/** Thumbnail/initials + name + city, shared by the three dashboard tables. */
+/** Cover thumbnail + name + city, shared by the three dashboard tables. */
 export default function DashboardPropertyIdentity({
   row,
   canOpen,
@@ -20,12 +24,25 @@ export default function DashboardPropertyIdentity({
   row: PropertyIdentity;
   canOpen: boolean;
 }) {
+  const photo = resolvePropertyPhoto(row);
+
   return (
     <span className="flex min-w-0 items-center gap-3">
-      {row.photo ? (
-        <img src={row.photo} alt="" loading="lazy" className={cn(THUMB, "object-cover")} />
+      {photo ? (
+        <OptimizedImage
+          src={photo}
+          width={112}
+          height={80}
+          alt=""
+          data-testid="dashboard-property-photo"
+          className={cn(THUMB, "object-cover")}
+        />
       ) : (
-        <span aria-hidden="true" className={cn(THUMB, "flex items-center justify-center bg-brand-soft text-brand-ink")}>
+        <span
+          aria-hidden="true"
+          data-testid="dashboard-property-photo-placeholder"
+          className={cn(THUMB, "flex items-center justify-center bg-brand-soft text-brand-ink")}
+        >
           <Buildings size={18} />
         </span>
       )}

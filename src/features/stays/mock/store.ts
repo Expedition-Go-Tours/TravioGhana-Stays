@@ -12,6 +12,8 @@
  */
 import { STAYS_BUILDER_STEP_COUNT } from "../config/staysSteps";
 import { computeOfferStatus } from "../utils/offerStatus";
+import { isoDaysBetween, shiftISODays, weekdayOf } from "../utils/dates";
+import { applyCopyAdjustment, copyDatePairs } from "../utils/copyRates";
 import { seedStays } from "./seed";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -820,6 +822,77 @@ export const staysMock = {
     delete db.overrides[`${roomId}|${date}`];
     persist();
     return { ok: true };
+  },
+
+  /** Applies the same values to every selected room/date. */
+  async setAvailabilityRange(propertyId, { roomIds = [], from, to, weekdays, values = {} }) {
+    await delay();
+    const p = property(propertyId);
+    const days = isoDaysBetween(from, to).filter(
+      (date) => !weekdays || weekdays.includes(weekdayOf(date)),
+    );
+    const rooms = p.rooms.filter((room) => roomIds.includes(room.id));
+    let cells = 0;
+    for (const room of rooms) {
+      for (const date of days) {
+        const key = `${room.id}|${date}`;
+        db.overrides[key] = { ...(db.overrides[key] || {}), ...values };
+        cells += 1;
+      }
+    }
+    persist();
+    return { cells };
+  },
+
+  /** Copies selected availability fields from a source range to a target range. */
+  async copyAvailabilityRange(
+    propertyId,
+    {
+      roomIds = [],
+      from,
+      to,
+      targetFrom,
+      targetTo,
+      weekdays,
+      fields = {},
+      adjustment = null,
+      overwrite = true,
+    },
+  ) {
+    await delay();
+    const p = property(propertyId);
+    const targetRangeTo = targetTo || shiftISODays(targetFrom, Math.max(0, isoDaysBetween(from, to).length - 1));
+    const rooms = p.rooms.filter((room) => roomIds.includes(room.id));
+    const selected = {
+      price: fields.price !== false,
+      count: fields.count !== false,
+      minStay: Boolean(fields.minStay),
+      maxStay: Boolean(fields.maxStay),
+      closed: Boolean(fields.closed),
+      closedArrival: Boolean(fields.closedArrival),
+      closedDeparture: Boolean(fields.closedDeparture),
+    };
+    const pairs = copyDatePairs({ from, to, targetFrom, targetTo: targetRangeTo, weekdays });
+    let cells = 0;
+    for (const room of rooms) {
+      for (const { source: sourceDate, target: targetIso } of pairs) {
+        const targetKey = `${room.id}|${targetIso}`;
+        if (!overwrite && db.overrides[targetKey]) continue;
+        const source = db.overrides[`${room.id}|${sourceDate}`] || {};
+        const patch = {};
+        if (selected.price) patch.price = applyCopyAdjustment(source.price ?? room.price, adjustment);
+        if (selected.count) patch.count = source.count ?? room.count;
+        if (selected.minStay) patch.minStay = source.minStay ?? 1;
+        if (selected.maxStay) patch.maxStay = source.maxStay ?? 30;
+        if (selected.closed) patch.closed = Boolean(source.closed);
+        if (selected.closedArrival) patch.closedArrival = Boolean(source.closedArrival);
+        if (selected.closedDeparture) patch.closedDeparture = Boolean(source.closedDeparture);
+        db.overrides[targetKey] = { ...(db.overrides[targetKey] || {}), ...patch };
+        cells += 1;
+      }
+    }
+    persist();
+    return { cells };
   },
 
   // ── Bookings ──────────────────────────────────────────────────────────

@@ -176,6 +176,76 @@ describe('availability overrides', () => {
     });
     expect(overrides['r1|2026-10-04']).toBeUndefined();
   });
+
+  it('closes every room/date in a range', async () => {
+    const result = await staysMock.setAvailabilityRange('p1', {
+      roomIds: ['r1'],
+      from: '2026-10-01',
+      to: '2026-10-03',
+      values: { closed: true },
+    });
+    expect(result.cells).toBe(3);
+    const { overrides } = await staysMock.getAvailability('p1', {
+      from: '2026-10-01',
+      to: '2026-10-03',
+    });
+    expect(overrides['r1|2026-10-01']).toEqual({ closed: true });
+    expect(overrides['r1|2026-10-02']).toEqual({ closed: true });
+    expect(overrides['r1|2026-10-03']).toEqual({ closed: true });
+  });
+
+  it('only updates the selected weekdays in a range', async () => {
+    const result = await staysMock.setAvailabilityRange('p1', {
+      roomIds: ['r1'],
+      from: '2026-10-01',
+      to: '2026-10-07',
+      weekdays: [1, 3],
+      values: { closed: true },
+    });
+    expect(result.cells).toBe(2);
+    const { overrides } = await staysMock.getAvailability('p1', {
+      from: '2026-10-01',
+      to: '2026-10-07',
+    });
+    expect(overrides['r1|2026-10-05']).toEqual({ closed: true });
+    expect(overrides['r1|2026-10-07']).toEqual({ closed: true });
+    expect(overrides['r1|2026-10-06']).toBeUndefined();
+  });
+
+  it('copies selected fields forward and can keep existing target overrides', async () => {
+    await staysMock.setAvailabilityCell('p1', {
+      roomId: 'r1',
+      date: '2026-10-01',
+      values: { price: 900, count: 2, closed: true },
+    });
+    await staysMock.setAvailabilityCell('p1', {
+      roomId: 'r1',
+      date: '2026-10-02',
+      values: { price: 850, count: 3 },
+    });
+    await staysMock.setAvailabilityCell('p1', {
+      roomId: 'r1',
+      date: '2026-11-01',
+      values: { price: 400 },
+    });
+
+    const copied = await staysMock.copyAvailabilityRange('p1', {
+      roomIds: ['r1'],
+      from: '2026-10-01',
+      to: '2026-10-02',
+      targetFrom: '2026-11-01',
+      fields: { price: true, count: true, minStay: false, closed: false },
+      overwrite: false,
+    });
+
+    expect(copied.cells).toBe(1);
+    const { overrides } = await staysMock.getAvailability('p1', {
+      from: '2026-11-01',
+      to: '2026-11-02',
+    });
+    expect(overrides['r1|2026-11-01']).toEqual({ price: 400 });
+    expect(overrides['r1|2026-11-02']).toEqual({ price: 850, count: 3 });
+  });
 });
 
 describe('bookings', () => {

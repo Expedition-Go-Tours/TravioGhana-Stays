@@ -1,19 +1,47 @@
-import { forwardRef } from "react";
-import ReactDatePicker from "react-datepicker";
-import { registerLocale } from "react-datepicker";
-import { enGB } from "date-fns/locale";
-import { Calendar } from "@/features/stays/icons";
+import { forwardRef, useState } from "react";
+import { endOfDay, format, startOfDay } from "date-fns";
+import type { Matcher } from "react-day-picker";
+
+import { Calendar as CalendarIcon } from "@/features/stays/icons";
 import { cn } from "@/lib/utils";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/tooltip";
+import { controlClasses } from "@/components/ui/variants";
 import {
   DATE_PICKER_DISPLAY_FORMAT,
   formatPickerDate,
   parsePickerDate,
 } from "@/lib/datePickerUtils";
-import "react-datepicker/dist/react-datepicker.css";
 
-registerLocale("en-GB", enGB);
+export type DatePickerProps = {
+  /** The stored value (`yyyy-MM-dd`) or a Date. */
+  value?: string | Date | null;
+  /** Emits an ISO date (`yyyy-MM-dd`), or an empty string when cleared. */
+  onChange?: (value: string) => void;
+  minDate?: string | Date | null;
+  maxDate?: string | Date | null;
+  placeholder?: string;
+  className?: string;
+  error?: unknown;
+  disabled?: boolean;
+  id?: string;
+  name?: string;
+  size?: "sm" | "md";
+  "aria-label"?: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean | "true" | "false";
+  "aria-required"?: boolean;
+};
 
-const DatePicker = forwardRef<any, any>(function DatePicker(
+/**
+ * The app's date picker: a form-control trigger that opens the shared
+ * `Calendar` in a Radix popover. Values stay ISO (`yyyy-MM-dd`) to match the
+ * API and native date inputs it replaces; the trigger reads as `dd/MM/yyyy`.
+ *
+ * The Availability workspace's month grid is separate: it shows inventory and
+ * is deliberately not built on this control.
+ */
+const DatePicker = forwardRef<HTMLButtonElement, DatePickerProps>(function DatePicker(
   {
     value,
     onChange,
@@ -23,63 +51,83 @@ const DatePicker = forwardRef<any, any>(function DatePicker(
     className,
     error = false,
     disabled = false,
-    inline = false,
-    size = "md",
     id,
     name,
-    ...rest
+    size = "md",
+    "aria-label": ariaLabel,
+    "aria-describedby": ariaDescribedBy,
+    "aria-invalid": ariaInvalid,
+    "aria-required": ariaRequired,
   },
   ref,
 ) {
+  const [open, setOpen] = useState(false);
   const selected = parsePickerDate(value);
-  const min = parsePickerDate(minDate);
-  const max = parsePickerDate(maxDate);
+  const parsedMin = parsePickerDate(minDate);
+  const parsedMax = parsePickerDate(maxDate);
+  // Treat bounds as whole days: a Date with a time must not disable its own day.
+  const min = parsedMin ? startOfDay(parsedMin) : null;
+  const max = parsedMax ? endOfDay(parsedMax) : null;
+  const today = new Date();
+  const defaultMonth = selected ?? (min && min > today ? min : today);
+  const invalid = Boolean(error) || ariaInvalid === true || ariaInvalid === "true";
 
-  const handleChange = (date) => {
+  const disabledDays: Matcher[] = [];
+  if (min) disabledDays.push({ before: min });
+  if (max) disabledDays.push({ after: max });
+
+  const handleSelect = (date?: Date) => {
     onChange?.(date ? formatPickerDate(date) : "");
+    setOpen(false);
   };
 
   return (
-    <div
-      className={cn(
-        "dashboard-date-picker",
-        inline ? "dashboard-date-picker--inline" : "dashboard-date-picker--field",
-        className,
-      )}
-    >
-      <ReactDatePicker
-        ref={ref}
-        id={id}
-        name={name}
-        selected={selected}
-        onChange={handleChange}
-        minDate={min}
-        maxDate={max}
-        disabled={disabled}
-        inline={inline}
-        locale="en-GB"
-        dateFormat={DATE_PICKER_DISPLAY_FORMAT}
-        placeholderText={placeholder}
-        showPopperArrow={false}
-        popperPlacement="bottom-start"
-        calendarClassName="dashboard-date-picker__calendar"
-        popperClassName="dashboard-date-picker__popper"
-        className={cn(
-          "dashboard-date-picker__input",
-          size === "sm" && "dashboard-date-picker__input--sm",
-          size === "md" && "dashboard-date-picker__input--md",
-          error && "dashboard-date-picker__input--error",
-        )}
-        {...rest}
-      />
-      {!inline && (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          ref={ref}
+          id={id}
+          name={name}
+          type="button"
+          disabled={disabled}
+          aria-label={ariaLabel}
+          aria-describedby={ariaDescribedBy}
+          aria-invalid={invalid || undefined}
+          aria-required={ariaRequired || undefined}
+          className={cn(
+            controlClasses,
+            "flex h-11 items-center justify-between gap-2 text-left",
+            size === "sm" && "h-9",
+            !selected && "text-subtle",
+            className,
+          )}
+        >
+          <span className="truncate">
+            {selected ? format(selected, DATE_PICKER_DISPLAY_FORMAT) : placeholder}
+          </span>
+          <CalendarIcon size={16} className="shrink-0 text-subtle" aria-hidden="true" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[24rem] max-w-[calc(100vw-1rem)] p-4" align="start" aria-label="Choose date">
         <Calendar
-          size={16}
-          className="dashboard-date-picker__icon cursor-pointer text-[#9e9e9e]"
-          aria-hidden="true"
+          mode="single"
+          selected={selected ?? undefined}
+          onSelect={handleSelect}
+          defaultMonth={defaultMonth}
+          startMonth={min ?? undefined}
+          endMonth={max ?? undefined}
+          disabled={disabledDays.length ? disabledDays : undefined}
+          autoFocus
+          className="w-full"
+          classNames={{
+            caption_label: "text-base font-semibold",
+            weekday: "size-12 text-sm",
+            day: "size-12",
+            day_button: "size-12",
+          }}
         />
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 });
 

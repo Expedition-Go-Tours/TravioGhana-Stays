@@ -69,6 +69,8 @@ export const TEAM_ROLE_PERMISSIONS = {
     'analytics.view', 'settings.tax',
   ],
   [TEAM_ROLES.SUPPORT]: [
+    // Chat permissions cover both the Experiences inbox and the Stays
+    // Customers page; each dashboard only requests its own product domain.
     'chat.view', 'chat.respond',
     'reviews.view', 'reviews.respond',
   ],

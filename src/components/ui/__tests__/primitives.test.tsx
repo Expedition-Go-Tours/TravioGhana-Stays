@@ -14,7 +14,6 @@ import {
   IconButton,
   Input,
   Money,
-  NativeSelect,
   ScoreBadge,
   StatCard,
   StatusBadge,
@@ -165,20 +164,6 @@ describe('Field and inputs', () => {
     render(<Input aria-label="Price" leading="USD" />);
     expect(screen.getByRole('textbox', { name: 'Price' })).toHaveClass('h-11', 'pl-10');
     expect(screen.getByText('USD')).toBeTruthy();
-  });
-
-  it('NativeSelect works with a label', async () => {
-    const onChange = vi.fn();
-    render(
-      <Field label="Currency">
-        <NativeSelect value="USD" onChange={onChange}>
-          <option value="USD">USD</option>
-          <option value="EUR">EUR</option>
-        </NativeSelect>
-      </Field>,
-    );
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Currency' }), 'EUR');
-    expect(onChange).toHaveBeenCalled();
   });
 });
 

@@ -82,14 +82,14 @@ describe("performance helpers", () => {
   it("exports only the visible columns with friendly values", () => {
     const csv = performanceCsv(
       [ROW],
-      ["id", "property", "bookedAvgDailyRate", "cancellationRate", "reviewScore", "clickThroughRate"],
+      ["property", "bookedAvgDailyRate", "cancellationRate", "reviewScore", "clickThroughRate"],
       "USD",
     );
     const lines = csv.split("\r\n");
     expect(lines[0]).toBe(
-      "ID,Property,Booked avg. daily rate,Cancellation rate,Review score,Click-through rate (30 days)",
+      "Property,Booked avg. daily rate,Cancellation rate,Review score,Click-through rate (30 days)",
     );
-    expect(lines[1]).toBe("p1,Akwaaba Coast Hotel — Accra,$483.33,25%,9,Not tracked");
+    expect(lines[1]).toBe("Akwaaba Coast Hotel — Accra,$483.33,25%,9,Not tracked");
   });
 
   it("writes the no-review state and every column when asked", () => {

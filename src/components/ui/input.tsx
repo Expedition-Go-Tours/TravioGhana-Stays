@@ -2,11 +2,9 @@ import {
   forwardRef,
   type InputHTMLAttributes,
   type ReactNode,
-  type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
 import { cn } from "@/lib/utils";
-import { ChevronDown } from "@/features/stays/icons";
 import { controlClasses } from "./variants";
 
 
@@ -65,31 +63,5 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
       className={cn(controlClasses, "min-h-24 resize-y py-2.5 leading-relaxed", className)}
       {...props}
     />
-  );
-});
-
-export type NativeSelectProps = SelectHTMLAttributes<HTMLSelectElement> & ErrorProp;
-
-/** The platform <select> — best on phones (native picker). */
-export const NativeSelect = forwardRef<HTMLSelectElement, NativeSelectProps>(function NativeSelect(
-  { className, error, children, "aria-invalid": ariaInvalid, ...props },
-  ref,
-) {
-  return (
-    <div className="relative min-w-0">
-      <select
-        ref={ref}
-        aria-invalid={invalid(error, ariaInvalid)}
-        className={cn(controlClasses, "h-11 cursor-pointer appearance-none pr-10", className)}
-        {...props}
-      >
-        {children}
-      </select>
-      <ChevronDown
-        size={16}
-        aria-hidden="true"
-        className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-muted"
-      />
-    </div>
   );
 });

@@ -18,6 +18,11 @@ export function fromISODate(iso) {
   return parseISO(iso);
 }
 
+/** Day of week for an ISO date: 0 = Sunday … 6 = Saturday. */
+export function weekdayOf(iso: string): number {
+  return fromISODate(iso).getDay();
+}
+
 /** "yyyy-MM-dd" + n months → "yyyy-MM-dd" (day-of-month is clamped). */
 export function shiftISOMonths(iso, months) {
   return toISODate(addMonths(fromISODate(iso), months));
@@ -56,6 +61,26 @@ export function weekRangeFor(anchorIso) {
   };
 }
 
+/** A month grid with configurable week start (1 = Monday, the calendar default). */
+export function monthGridFor(anchorIso: string, weekStartsOn = 1) {
+  const anchor = fromISODate(anchorIso);
+  const start = startOfMonth(anchor);
+  const days = eachDayOfInterval({ start, end: endOfMonth(anchor) }).map(toISODate);
+  return {
+    days,
+    from: days[0],
+    to: days[days.length - 1],
+    label: format(anchor, "MMMM yyyy"),
+    monthStart: toISODate(start),
+    padStart: (start.getDay() - weekStartsOn + 7) % 7,
+  };
+}
+
+/** Consecutive month grids starting from `anchorIso` (used by the year view). */
+export function monthsFrom(anchorIso: string, count: number, weekStartsOn = 1) {
+  return Array.from({ length: count }, (_, index) => monthGridFor(shiftISOMonths(anchorIso, index), weekStartsOn));
+}
+
 /** Dashboard list format, matching the prototype: "10-04 – 10-08". */
 export function formatStayShort(fromIso, toIso) {
   return `${String(fromIso).slice(5)} – ${String(toIso).slice(5)}`;
@@ -75,4 +100,15 @@ export function formatShortArrow(fromIso, toIso) {
 /** Today as `yyyy-MM-dd`, for default form values. */
 export function todayISO() {
   return toISODate(new Date());
+}
+
+/** Every calendar date from `from` to `to` inclusive, capped for safety. */
+export function isoDaysBetween(from: string, to: string, limit = 366): string[] {
+  if (!from || !to || from > to) return [];
+  try {
+    const days = eachDayOfInterval({ start: parseISO(from), end: parseISO(to) }).map(toISODate);
+    return days.slice(0, limit);
+  } catch {
+    return [];
+  }
 }

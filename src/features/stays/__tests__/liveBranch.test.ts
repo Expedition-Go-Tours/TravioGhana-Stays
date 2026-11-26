@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mocks/server';
 import { staysApiHandlers } from '@/test/mocks/staysApiHandlers';
 import { staysMock } from '@/features/stays/mock/store';
+import { config } from '@/config';
 
 /**
  * The live (api) branch of every Stays API module, against the simulated
@@ -26,6 +27,7 @@ type Modules = {
   queryState: typeof import('@/lib/queryState');
 };
 let m: Modules;
+const API = config.api.baseURL.replace(/\/$/, '');
 
 beforeAll(async () => {
   m = {
@@ -93,6 +95,26 @@ describe('live branch', () => {
     expect(inbox.unreadCount).toBeGreaterThan(0);
   });
 
+  it('scopes chat and notifications to the Stays product domain', async () => {
+    const urls: string[] = [];
+    server.events.on('request:start', ({ request }) => urls.push(request.url));
+    try {
+      await m.customers.listStaysConversations();
+      await m.notifications.fetchStaysNotifications();
+    } finally {
+      server.events.removeAllListeners();
+    }
+
+    const domainOf = (path: string) =>
+      urls
+        .map((url) => new URL(url))
+        .find((url) => url.pathname.endsWith(path))
+        ?.searchParams.get('domain');
+
+    expect(domainOf('/stays/conversations')).toBe('stays');
+    expect(domainOf('/stays/notifications')).toBe('stays');
+  });
+
   it('settingsApi.ts', async () => {
     expect(await m.settings.fetchCurrentUser()).toMatchObject({ email: 'stays@akwaabacoast.com' });
     expect(await m.settings.fetchBusinessProfile()).toHaveProperty('businessInfo');
@@ -106,7 +128,7 @@ describe('live branch', () => {
 
   it('a 404 from a stays endpoint becomes the "unavailable" query state', async () => {
     server.use(
-      http.get('https://api.travioghana.com/api/travioghana/supplier/stays/dashboard', () =>
+      http.get(`${API}/travioghana/supplier/stays/dashboard`, () =>
         HttpResponse.json({ message: 'Not found' }, { status: 404 }),
       ),
     );
@@ -117,7 +139,7 @@ describe('live branch', () => {
 
   it('a 500 stays an error, and is retried once', async () => {
     server.use(
-      http.get('https://api.travioghana.com/api/travioghana/supplier/stays/dashboard', () =>
+      http.get(`${API}/travioghana/supplier/stays/dashboard`, () =>
         HttpResponse.json({ message: 'boom' }, { status: 500 }),
       ),
     );

@@ -87,16 +87,16 @@ describe("dashboard filters", () => {
 
 describe("dashboard CSV", () => {
   it("exports the visible columns and the friendly paused label", () => {
-    const csv = dashboardCsv(ROWS.slice(0, 2), ["id", "property", "status", "guestMessages"]);
+    const csv = dashboardCsv(ROWS.slice(0, 2), ["property", "status", "guestMessages"]);
     const lines = csv.split("\r\n");
-    expect(lines[0]).toBe("ID,Property,Status on Travio,Guest messages");
-    expect(lines[1]).toBe("p1,Akwaaba Coast Hotel — Accra,Live,3");
-    expect(lines[2]).toBe("p2,Kumasi Gardens Lodge — Kumasi,Closed / Not bookable,1");
+    expect(lines[0]).toBe("Property,Status on Travio,Guest messages");
+    expect(lines[1]).toBe("Akwaaba Coast Hotel — Accra,Live,3");
+    expect(lines[2]).toBe("Kumasi Gardens Lodge — Kumasi,Closed / Not bookable,1");
   });
 
   it("quotes commas and embedded quotes", () => {
-    const csv = dashboardCsv([ROWS[2]], ["id", "property"]);
-    expect(csv).toBe('ID,Property\r\np3,"Cape Coast, ""Heritage"" Inn — Cape Coast"');
+    const csv = dashboardCsv([ROWS[2]], ["property"]);
+    expect(csv).toBe('Property\r\n"Cape Coast, ""Heritage"" Inn — Cape Coast"');
   });
 
   it("names the file by date", () => {

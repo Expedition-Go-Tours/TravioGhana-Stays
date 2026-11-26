@@ -56,7 +56,7 @@ function normalizeOption(option: Option): { value: string; label: ReactNode } {
 
 type StaysSelectProps = {
   className?: string;
-  options?: Option[];
+  options?: readonly Option[];
   value?: string | number | null;
   /** Native-select-shaped: reads `event.target.value`. */
   onChange?: (event: { target: { value: string } }) => void;
@@ -97,8 +97,8 @@ export function StaysSelect({
       <SelectTrigger className={className} {...triggerProps}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
-      {/* Above dialogs and the builder's fixed overlay. */}
-      <SelectContent className="z-[60]">
+      {/* Portaled above dialogs and the builder's fixed overlay. */}
+      <SelectContent>
         {options.map((option, index) => {
           const { value: optionValue, label } = normalizeOption(option);
           return (

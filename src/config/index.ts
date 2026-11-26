@@ -41,19 +41,22 @@ const viteMode = envString(import.meta.env.MODE, 'production');
 const appEnv = envString(import.meta.env.VITE_APP_ENV, viteMode);
 const isDev = appEnv === 'development';
 
+// The canonical host serves the platform API for auth/settings/chat and routes
+// `/api/travioghana/supplier/stays/**` to the separate `stays-api` container.
+// Never fall back to the app's own origin: it answers with index.html and
+// surfaces to users as a misleading "Network Error".
+const DEFAULT_API_BASE_URL = 'https://api.travioghana.com/api';
+
 // Safe env parsing with sensible defaults
 const env = {
   // API
-  // Default to the canonical Ghana API host so a missing/empty env var can
-  // never make the app call its own origin (which answers with index.html and
-  // surfaces to users as a misleading "Network Error").
-  VITE_API_BASE_URL: envString(import.meta.env.VITE_API_BASE_URL, 'https://api.travioghana.com/api'),
+  VITE_API_BASE_URL: envString(import.meta.env.VITE_API_BASE_URL, DEFAULT_API_BASE_URL),
   VITE_API_TIMEOUT: envNum(import.meta.env.VITE_API_TIMEOUT, 30000),
   VITE_API_RETRY_ATTEMPTS: envNum(import.meta.env.VITE_API_RETRY_ATTEMPTS, 3),
 
   // Auth
   VITE_AUTH_PROVIDER: envString(import.meta.env.VITE_AUTH_PROVIDER, 'firebase'),
-  VITE_AUTH_API_BASE_URL: envString(import.meta.env.VITE_AUTH_API_BASE_URL, 'https://api.travioghana.com/api'),
+  VITE_AUTH_API_BASE_URL: envString(import.meta.env.VITE_AUTH_API_BASE_URL, DEFAULT_API_BASE_URL),
   VITE_TOKEN_REFRESH_INTERVAL: envNum(import.meta.env.VITE_TOKEN_REFRESH_INTERVAL, 300000),
   VITE_SESSION_TIMEOUT: envNum(import.meta.env.VITE_SESSION_TIMEOUT, 3600000),
 

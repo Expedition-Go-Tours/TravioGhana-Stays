@@ -25,6 +25,8 @@ import {
   addStaysDocument,
 } from "../verification/api";
 import { formatDate } from "@/lib/utils";
+import DatePicker from "@/components/forms/DatePicker";
+import { StaysSelect } from "../components/StaysForm";
 
 const DOC_LABEL = (type) =>
   (type || "Other").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -204,9 +206,6 @@ function OutlineButton({ children, onClick, danger, className = "" }: any) {
     </button>
   );
 }
-
-const inputCls =
-  "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 transition-shadow focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100";
 
 const fileLabelCls =
   "block rounded-lg border border-dashed border-slate-200 bg-slate-50/50 p-3 text-center text-xs text-slate-500 transition-colors hover:border-emerald-300 hover:bg-emerald-50/40";
@@ -708,16 +707,14 @@ export default function StaysVerificationPage() {
                 {showDocForm && (
                   <div className="space-y-3 rounded-xl border border-emerald-100 bg-emerald-50/40 p-4">
                     <div className="grid gap-3 sm:grid-cols-3">
-                      <select
+                      <StaysSelect
+                        aria-label="Document type"
+                        options={addableTypes}
                         value={docForm.type}
+                        placeholder="Select document type…"
                         onChange={(e) => setDocForm((f) => ({ ...f, type: e.target.value }))}
-                        className={`${inputCls} sm:col-span-1`}
-                      >
-                        <option value="">Select document type…</option>
-                        {addableTypes.map((t) => (
-                          <option key={t.value} value={t.value}>{t.label}</option>
-                        ))}
-                      </select>
+                        className="sm:col-span-1"
+                      />
                       <label className={fileLabelCls}>
                         <span className="mb-1.5 block font-medium text-slate-600">{docForm.file ? docForm.file.name : "Choose document file"}</span>
                         <input
@@ -727,13 +724,12 @@ export default function StaysVerificationPage() {
                           onChange={(e) => setDocForm((f) => ({ ...f, file: e.target.files?.[0] || null }))}
                         />
                       </label>
-                      <input
-                        type="date"
+                      <DatePicker
                         value={docForm.expiryDate}
-                        onChange={(e) => setDocForm((f) => ({ ...f, expiryDate: e.target.value }))}
+                        onChange={(value) => setDocForm((f) => ({ ...f, expiryDate: value }))}
                         placeholder="Expiry date (optional)"
-                        className={`${inputCls} sm:col-span-1`}
-                        title="Expiry date (optional)"
+                        aria-label="Expiry date (optional)"
+                        className="sm:col-span-1"
                       />
                     </div>
                     <div className="flex justify-end gap-2 pt-1">
@@ -767,16 +763,14 @@ export default function StaysVerificationPage() {
               {showDocForm && (
                 <div className="space-y-3 rounded-xl border border-emerald-100 bg-emerald-50/40 p-4">
                   <div className="grid gap-3 sm:grid-cols-3">
-                    <select
+                    <StaysSelect
+                      aria-label="Document type"
+                      options={addableTypes}
                       value={docForm.type}
+                      placeholder="Select document type…"
                       onChange={(e) => setDocForm((f) => ({ ...f, type: e.target.value }))}
-                      className={`${inputCls} sm:col-span-1`}
-                    >
-                      <option value="">Select document type…</option>
-                      {addableTypes.map((t) => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
-                      ))}
-                    </select>
+                      className="sm:col-span-1"
+                    />
                     <label className={fileLabelCls}>
                       <span className="mb-1.5 block font-medium text-slate-600">{docForm.file ? docForm.file.name : "Choose document file"}</span>
                       <input
@@ -786,12 +780,12 @@ export default function StaysVerificationPage() {
                         onChange={(e) => setDocForm((f) => ({ ...f, file: e.target.files?.[0] || null }))}
                       />
                     </label>
-                    <input
-                      type="date"
+                    <DatePicker
                       value={docForm.expiryDate}
-                      onChange={(e) => setDocForm((f) => ({ ...f, expiryDate: e.target.value }))}
-                      className={`${inputCls} sm:col-span-1`}
-                      title="Expiry date (optional)"
+                      onChange={(value) => setDocForm((f) => ({ ...f, expiryDate: value }))}
+                      placeholder="Expiry date (optional)"
+                      aria-label="Expiry date (optional)"
+                      className="sm:col-span-1"
                     />
                   </div>
                   <div className="flex justify-end gap-2 pt-1">

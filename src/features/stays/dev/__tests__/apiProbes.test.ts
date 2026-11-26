@@ -3,12 +3,13 @@ import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mocks/server';
 import { staysApiHandlers } from '@/test/mocks/staysApiHandlers';
 import { staysMock } from '@/features/stays/mock/store';
+import { config } from '@/config';
 import api from '@/lib/axios';
 import { PROBES, runProbes, summarize } from '../apiProbes';
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), warning: vi.fn() } }));
 
-const API = 'https://api.travioghana.com/api';
+const API = config.api.baseURL.replace(/\/$/, '');
 
 beforeEach(() => {
   staysMock.reset();

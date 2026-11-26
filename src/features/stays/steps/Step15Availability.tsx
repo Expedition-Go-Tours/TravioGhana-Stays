@@ -2,7 +2,8 @@ import { useState } from "react";
 import { ChevronLeft, Lightbulb, X } from "@/features/stays/icons";
 import { toast } from "sonner";
 import StaysButton from "../components/StaysButton";
-import { StaysField, StaysInput, StaysSelect } from "../components/StaysForm";
+import { StaysField, StaysSelect } from "../components/StaysForm";
+import DatePicker from "@/components/forms/DatePicker";
 
 /**
  * STEP 15 — Availability, Booking's "Availability" page: the first bookable
@@ -157,10 +158,9 @@ export default function Step15Availability({
             {startMode === "date" && (
               <div className="mt-4 max-w-xs">
                 <StaysField label="First date guests can check in">
-                  <StaysInput
-                    type="date"
+                  <DatePicker
                     value={property.start || ""}
-                    onChange={(event) => patch({ start: event.target.value })}
+                    onChange={(value) => patch({ start: value })}
                   />
                 </StaysField>
               </div>

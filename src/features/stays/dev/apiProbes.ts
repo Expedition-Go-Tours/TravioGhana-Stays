@@ -174,12 +174,13 @@ export const PROBES: Probe[] = [
   // ── features/stays/customersApi.ts ────────────────────────────────────────
   {
     id: "conversations", module: "stays/customersApi.ts", fn: "listStaysConversations",
-    path: () => "/chat/conversations",
+    path: () => `${S}/conversations`,
+    params: { domain: "stays" },
     check: listProbe(RAW.conversation, "conversations", "conversationId"),
   },
   {
     id: "conversation-messages", module: "stays/customersApi.ts", fn: "listStaysConversationMessages",
-    path: (ctx) => (ctx.conversationId ? `/chat/conversations/${ctx.conversationId}/messages` : null),
+    path: (ctx) => (ctx.conversationId ? `${S}/conversations/${ctx.conversationId}/messages` : null),
     params: { limit: 20 },
     check: (body) => {
       const page = data(body);
@@ -201,8 +202,8 @@ export const PROBES: Probe[] = [
   },
   {
     id: "notifications", module: "stays/notifications/api.ts", fn: "fetchStaysNotifications",
-    path: () => "/notifications",
-    params: { limit: 20 },
+    path: () => `${S}/notifications`,
+    params: { domain: "stays", limit: 20 },
     check: listProbe(RAW.notification, "notifications"),
   },
 

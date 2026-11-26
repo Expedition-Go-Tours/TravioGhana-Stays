@@ -140,9 +140,10 @@ export default function Step2Details() {
                   Start Date
                 </label>
                 <DatePicker
-                  selected={offer.startDate}
+                  value={offer.startDate}
                   onChange={(date) => updateOffer({ startDate: date })}
-                  placeholderText="Select start date"
+                  placeholder="Select start date"
+                  aria-label="Start Date"
                   minDate={new Date()}
                   className="w-full"
                 />
@@ -155,9 +156,10 @@ export default function Step2Details() {
                   End Date
                 </label>
                 <DatePicker
-                  selected={offer.endDate}
+                  value={offer.endDate}
                   onChange={(date) => updateOffer({ endDate: date })}
-                  placeholderText="Select end date"
+                  placeholder="Select end date"
+                  aria-label="End Date"
                   minDate={offer.startDate || new Date()}
                   className="w-full"
                 />
@@ -187,9 +189,10 @@ export default function Step2Details() {
                   Start Date
                 </label>
                 <DatePicker
-                  selected={offer.startDate}
+                  value={offer.startDate}
                   onChange={(date) => updateOffer({ startDate: date })}
-                  placeholderText="Optional"
+                  placeholder="Optional"
+                  aria-label="Start Date"
                   minDate={new Date()}
                   className="w-full"
                 />
@@ -199,9 +202,10 @@ export default function Step2Details() {
                   End Date
                 </label>
                 <DatePicker
-                  selected={offer.endDate}
+                  value={offer.endDate}
                   onChange={(date) => updateOffer({ endDate: date })}
-                  placeholderText="Optional"
+                  placeholder="Optional"
+                  aria-label="End Date"
                   minDate={offer.startDate || new Date()}
                   className="w-full"
                 />

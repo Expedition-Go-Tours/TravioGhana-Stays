@@ -77,7 +77,7 @@ describe('phone navigation drawer', () => {
     expect(drawer).toHaveAttribute('id', 'mobile-nav');
     expect(menu).toHaveAttribute('aria-expanded', 'true');
     // Full labels in the drawer, always.
-    expect(within(drawer).getByRole('link', { name: 'Bookings' })).toBeTruthy();
+    expect(within(drawer).getByRole('link', { name: 'Reservations' })).toBeTruthy();
     expect(drawer.contains(document.activeElement)).toBe(true);
   });
 
@@ -96,9 +96,32 @@ describe('phone navigation drawer', () => {
     const user = userEvent.setup();
     renderShell();
     await user.click(screen.getByRole('button', { name: 'Open menu' }));
-    await user.click(within(screen.getByRole('dialog', { name: 'Menu' })).getByRole('link', { name: 'Bookings' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Menu' })).getByRole('link', { name: 'Reservations' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Menu' })).toBeNull());
     expect(screen.getByTestId('location')).toHaveTextContent('/stays/bookings');
+  });
+
+  it('expands Availability into its sub-pages and closes the drawer on selection', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
+    const drawer = screen.getByRole('dialog', { name: 'Menu' });
+
+    await user.click(within(drawer).getByRole('button', { name: 'Expand Availability menu' }));
+    const section = within(drawer).getByRole('link', { name: 'Open/close rooms' });
+    await user.click(section);
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Menu' })).toBeNull());
+    expect(screen.getByTestId('location')).toHaveTextContent('/stays/availability?section=open-close-rooms');
+  });
+
+  it('marks the active Availability section and opens its submenu', async () => {
+    renderShell('/stays/availability?section=child-rates');
+    act(() => useSidebarStore.getState().openMobile());
+    const drawer = screen.getByRole('dialog', { name: 'Menu' });
+    expect(within(drawer).getByRole('link', { name: 'Child rates' })).toHaveAttribute('aria-current', 'page');
+    expect(within(drawer).queryByRole('link', { name: 'Value adds' })).toBeNull();
+    expect(within(drawer).getByRole('button', { name: 'Collapse Availability menu' })).toBeTruthy();
   });
 
   it('closes on any route change, not only its own links', async () => {
@@ -132,6 +155,16 @@ describe('desktop sidebar', () => {
     });
     expect(within(nav).getByRole('link', { name: 'Finance' })).toBeTruthy();
     expect(within(nav).getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('opens the Availability sections from the collapsed rail', async () => {
+    const user = userEvent.setup();
+    act(() => useSidebarStore.setState({ isCollapsed: true }));
+    renderShell();
+    const aside = screen.getByRole('complementary', { name: 'Workspace' });
+    await user.click(within(aside).getByRole('button', { name: 'Availability' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Child rates' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/stays/availability?section=child-rates'));
   });
 
   it('signs out from the collapsed rail, after confirming', async () => {
@@ -212,6 +245,18 @@ describe('command palette', () => {
 
     await user.click(screen.getAllByRole('button', { name: 'Search pages' })[0]);
     expect(within(screen.getByRole('listbox', { name: 'Recent pages' })).getByRole('option', { name: /Availability/ })).toBeTruthy();
+  });
+
+  it('offers the Availability sub-pages', async () => {
+    const user = userEvent.setup();
+    renderPalette();
+    await user.click(screen.getAllByRole('button', { name: 'Search pages' })[0]);
+    await user.type(screen.getByRole('combobox'), 'open/close');
+    const option = screen.getByRole('option', { name: /Open\/close rooms/ });
+    expect(option).toHaveTextContent('Availability');
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByTestId('location')).toHaveTextContent('/stays/availability?section=open-close-rooms');
   });
 
   it('says so when nothing matches', async () => {

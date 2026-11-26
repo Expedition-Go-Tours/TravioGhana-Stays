@@ -53,6 +53,15 @@ export type RoomType = {
   meal?: string;
 };
 
+export type RatePlanTemplateKey =
+  | "flexible"
+  | "firm"
+  | "non-refundable"
+  | "weekly"
+  | "monthly"
+  | "early-booker"
+  | "custom";
+
 export type RatePlan = {
   id: string;
   roomId: string;
@@ -75,9 +84,28 @@ export type RatePlan = {
   singleGuestDiscount: number;
   extraAdult: number;
   extraChild: number;
+  /** Maximum guests for this plan (defaults to the room's adult capacity). */
+  maxGuests?: number;
+  /** How lower-occupancy prices are calculated on the Pricing per guest page. */
+  occupancyPricingMode?: "recommended" | "custom";
+  /** Per-occupancy reductions below the base occupancy. */
+  occupancyDiscounts?: Array<{
+    occupancy: number;
+    value: number;
+    unit: "percent" | "amount";
+    enabled: boolean;
+  }>;
   closedArrival: boolean;
   closedDeparture: boolean;
   includesTaxes: string;
+  /** The template used to create this plan (Rates catalogue). */
+  templateKey?: RatePlanTemplateKey;
+  /** When derived, price from this plan rather than the room base. */
+  basePlanId?: string | null;
+  /** Minimum days before check-in a guest may book (0 = any time). */
+  minAdvanceDays?: number;
+  /** Optional value adds attached to this plan. */
+  valueAddIds?: string[];
 };
 
 export type Bedroom = { id: string; name: string; doubleBeds: number; singleBeds: number };
@@ -152,6 +180,14 @@ export type Property = {
   payments: { mode: string };
   invoicing: { name: string; legalName: string; sameAddress: boolean; address: string };
   agreement: { certifyBusiness: boolean; certifyTerms: boolean; openMonths: string; notReadyReason: string };
+  /** Availability restriction rules (Availability → Dynamic restriction rules). */
+  restrictionRules?: RestrictionRule[];
+  /** Automatic unsold-night and gap-night rules. */
+  dynamicRestrictions?: DynamicRestrictions;
+  /** Default child age bands shown on Availability → Child rates. */
+  childRateGroups?: ChildRateGroup[];
+  /** Optional extras a guest can add to a reservation. */
+  valueAdds?: ValueAdd[];
 };
 
 /** A row of `listProperties` — the property plus its booking count. */
@@ -164,12 +200,87 @@ export type AvailabilityOverride = {
   count?: number;
   closed?: boolean;
   minStay?: number;
+  maxStay?: number;
+  closedArrival?: boolean;
+  closedDeparture?: boolean;
 };
 
 export type Availability = {
   /** Keyed `${roomId}|${YYYY-MM-DD}`. */
   overrides: Record<string, AvailabilityOverride>;
   currency: CurrencyCode;
+};
+
+/**
+ * A reusable date/day restriction for a set of rooms. Applied by the calendar
+ * on top of the per-date overrides, so a rule can block or set a minimum stay
+ * without editing every cell.
+ */
+export type RestrictionRule = {
+  id: string;
+  name: string;
+  roomIds: string[];
+  from: ISODate;
+  to: ISODate;
+  /** 0 = Sunday … 6 = Saturday. Empty means every day. */
+  weekdays: number[];
+  minStay?: number | null;
+  maxStay?: number | null;
+  closed?: boolean;
+  closedArrival?: boolean;
+  closedDeparture?: boolean;
+  active: boolean;
+};
+
+/** An extra included with a reservation (breakfast, parking, transfer …). */
+export type ValueAdd = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  /** "stay" | "night" | "guest" */
+  unit: string;
+  active: boolean;
+};
+
+/** A property-level child age band and the nightly/stay rate that applies. */
+export type ChildRateGroup = {
+  id: string;
+  label: string;
+  minAge: number;
+  maxAge: number;
+  rateType: "free" | "fixed" | "percentage";
+  value: number;
+  unit: "night" | "stay";
+};
+
+export type DynamicRestrictionPriceChange = {
+  mode: "none" | "increase" | "decrease";
+  unit: "amount" | "percent";
+  value: number;
+};
+
+export type DynamicRestrictionScope = {
+  allRooms: boolean;
+  allRatePlans: boolean;
+  roomIds: string[];
+  ratePlanIds: string[];
+};
+
+/** An automatic relaxation rule for unsold nights or length-of-stay gaps. */
+export type DynamicRestrictionRule = {
+  minStay: number;
+  minAdvanceDays: number | null;
+  priceChange: DynamicRestrictionPriceChange;
+  applicablePeriodDays: number;
+  scope: DynamicRestrictionScope;
+  endMode: "until-off" | "date";
+  endDate: string | null;
+};
+
+export type DynamicRestrictions = {
+  unsold: DynamicRestrictionRule;
+  gap: DynamicRestrictionRule;
 };
 
 /* ── Bookings ─────────────────────────────────────────────────────────────── */

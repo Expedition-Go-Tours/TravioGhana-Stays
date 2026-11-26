@@ -10,12 +10,12 @@ import {
   IconButton,
   Input,
   Money,
-  NativeSelect,
   Pagination,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
+  TAB_PANEL_TRANSITION,
 } from "@/components/ui";
 import { Plus, RefreshCw, Search, SlidersHorizontal, Ticket, X } from "@/features/stays/icons";
 import { useBreakpoint } from "@/hooks/useMediaQuery";
@@ -29,6 +29,7 @@ import { BookingDetailSheet } from "../components/bookings/BookingDetailSheet";
 import { BookingFiltersSheet } from "../components/bookings/BookingFiltersSheet";
 import { ReservationCard } from "../components/bookings/BookingParts";
 import { CreateBookingDialog } from "../components/bookings/CreateBookingDialog";
+import { StaysSelect } from "../components/StaysForm";
 import {
   activeFilterCount,
   applyFilters,
@@ -50,12 +51,12 @@ import { listStaysBookings, STAYS_KEYS, updateBookingStatus } from "../api";
 import { formatStayDate } from "../utils/stayDates";
 
 /**
- * Bookings: every reservation, split into status tabs, with search, property
- * and check-in filters, and a sort. A row opens the booking in a side panel
+ * Reservations: every stay, split into status tabs, with search, property
+ * and check-in filters, and a sort. A row opens the reservation in a side panel
  * (a bottom sheet on phones) where it can be confirmed, checked in, completed
- * or cancelled. The tab, filters and open booking live in the URL
+ * or cancelled. The tab, filters and open reservation live in the URL
  * (`?tab=new&q=sarah&bookingId=TG-S-20493`), so links from the dashboard and
- * notifications land on the right booking and the back button works.
+ * notifications land on the right reservation and the back button works.
  */
 
 const PAGE_SIZE = 25;
@@ -71,7 +72,8 @@ export default function StaysBookingsPage() {
 
   const [page, setPage] = useState(1);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filtersKey, setFiltersKey] = useState(0);
+  // The sheet edits this copy; it starts from the applied filters each time.
+  const [draftFilters, setDraftFilters] = useState<BookingFilters>(filters);
   const [createOpen, setCreateOpen] = useState(false);
   const [pending, setPending] = useState<{ id: string; status: string } | null>(null);
   const roomy = useBreakpoint("xl");
@@ -148,13 +150,13 @@ export default function StaysBookingsPage() {
       refreshAfterWrite();
       toast.success(action.done);
     },
-    onError: (error) => toast.error(getErrorMessage(error) || "We couldn't update the booking. Try again."),
+    onError: (error) => toast.error(getErrorMessage(error) || "We couldn't update the reservation. Try again."),
     onSettled: () => setPending(null),
   });
 
   const handleCreated = (booking: Booking) => {
     setCreateOpen(false);
-    toast.success(`Booking created for ${booking.guest}`);
+    toast.success(`Reservation created for ${booking.guest}`);
     refreshAfterWrite();
     openBooking(booking.id);
   };
@@ -166,24 +168,24 @@ export default function StaysBookingsPage() {
     all.length === 0 ? (
       <EmptyState
         icon={<Ticket size={22} />}
-        title="No bookings yet"
-        description="Reservations appear here as soon as guests book. You can also record a walk-in or phone booking yourself."
+        title="No reservations yet"
+        description="Reservations appear here as soon as guests make one. You can also record a walk-in or phone reservation yourself."
         action={
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <Plus size={16} weight="bold" aria-hidden="true" />
-            Create booking
+            Create reservation
           </Button>
         }
       />
     ) : filtered ? (
       <EmptyState
         icon={<Search size={22} />}
-        title="No bookings match"
-        description="Try another search, or clear the filters to see every booking in this tab."
+        title="No reservations match"
+        description="Try another search, or clear the filters to see every reservation in this tab."
         action={<Button onClick={() => setFilters({ ...EMPTY_FILTERS, sort: filters.sort })}>Clear filters</Button>}
       />
     ) : (
-      <EmptyState icon={<Ticket size={22} />} title={`No ${tabLabel.toLowerCase()} bookings`} description="Bookings will show up here when their status matches." />
+      <EmptyState icon={<Ticket size={22} />} title={`No ${tabLabel.toLowerCase()} reservations`} description="Reservations will show up here when their status matches." />
     );
 
   const chips: { key: keyof BookingFilters; label: string }[] = [
@@ -198,13 +200,13 @@ export default function StaysBookingsPage() {
   return (
     <div>
       <StaysPageHeader
-        title="Bookings"
+        title="Reservations"
         subtitle="Every reservation across your properties."
         actions={
           <>
             <IconButton
               variant="secondary"
-              aria-label="Refresh bookings"
+              aria-label="Refresh reservations"
               loading={bookingsQuery.isFetching && !bookingsQuery.isLoading}
               onClick={() => void bookingsQuery.refetch()}
             >
@@ -212,14 +214,14 @@ export default function StaysBookingsPage() {
             </IconButton>
             <Button variant="primary" onClick={() => setCreateOpen(true)}>
               <Plus size={16} weight="bold" aria-hidden="true" />
-              Create booking
+              Create reservation
             </Button>
           </>
         }
       />
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList aria-label="Booking status">
+        <TabsList aria-label="Reservation status">
           {BOOKING_TABS.map((entry) => (
             <TabsTrigger key={entry.value} value={entry.value} count={status === "success" ? counts[entry.value] : undefined}>
               {entry.label}
@@ -227,11 +229,11 @@ export default function StaysBookingsPage() {
           ))}
         </TabsList>
 
-        <TabsContent value={tab} className="pt-4">
+        <TabsContent value={tab} className={cn("pt-4", TAB_PANEL_TRANSITION)}>
           {/* Toolbar */}
           <div className="flex items-center gap-2">
             <label className="min-w-0 flex-1">
-              <span className="sr-only">Search bookings</span>
+              <span className="sr-only">Search reservations</span>
               <Input
                 type="search"
                 value={filters.query}
@@ -240,26 +242,21 @@ export default function StaysBookingsPage() {
                 onChange={(event) => setFilters({ ...filters, query: event.target.value })}
               />
             </label>
-            <label className="hidden shrink-0 md:block">
-              <span className="sr-only">Sort bookings</span>
-              <NativeSelect
+            <div className="hidden shrink-0 md:block">
+              <StaysSelect
+                aria-label="Sort reservations"
+                options={BOOKING_SORTS}
                 value={filters.sort}
                 className="w-56"
                 onChange={(event) => setFilters({ ...filters, sort: event.target.value as BookingSort })}
-              >
-                {BOOKING_SORTS.map((sort) => (
-                  <option key={sort.value} value={sort.value}>
-                    {sort.label}
-                  </option>
-                ))}
-              </NativeSelect>
-            </label>
+              />
+            </div>
             <Button
               variant="secondary"
               aria-label={filterCount ? `Filters, ${filterCount} active` : "Filters"}
               className={cn(filterCount > 0 && "border-brand text-brand-ink")}
               onClick={() => {
-                setFiltersKey((key) => key + 1);
+                setDraftFilters(filters);
                 setFiltersOpen(true);
               }}
             >
@@ -298,11 +295,11 @@ export default function StaysBookingsPage() {
           {status === "success" && rows.length > 0 && (
             <p className="mt-4 text-sm text-muted" aria-live="polite">
               <span className="figures font-semibold text-ink">{rows.length.toLocaleString("en-US")}</span>{" "}
-              {rows.length === 1 ? "booking" : "bookings"}
+              {rows.length === 1 ? "reservation" : "reservations"}
               {bookedValue(rows) > 0 && (
                 <>
                   {" · "}
-                  <Money amount={bookedValue(rows)} currency={rows[0]?.currency} className="font-semibold text-ink" /> booked
+                  <Money amount={bookedValue(rows)} currency={rows[0]?.currency} className="font-semibold text-ink" /> total
                 </>
               )}
             </p>
@@ -314,16 +311,16 @@ export default function StaysBookingsPage() {
           >
             <DataTable
               className="px-1 max-md:px-0"
-              ariaLabel="Bookings"
+              ariaLabel="Reservations"
               columns={reservationColumns({ roomy, withGuests: true })}
               rows={pageRows}
               status={status}
               onRetry={() => void bookingsQuery.refetch()}
-              unavailableFeature="Bookings"
+              unavailableFeature="Reservations"
               loadingRows={5}
               empty={empty}
               onRowClick={(booking) => openBooking(booking.id)}
-              rowLabel={(booking) => `Open booking ${booking.id} for ${booking.guest}`}
+              rowLabel={(booking) => `Open reservation ${booking.id} for ${booking.guest}`}
               renderCard={(booking) => <ReservationCard booking={booking} />}
               footer={
                 <Pagination
@@ -331,7 +328,7 @@ export default function StaysBookingsPage() {
                   page={currentPage}
                   totalPages={totalPages}
                   totalCount={rows.length}
-                  itemLabel="bookings"
+                  itemLabel="reservations"
                   onPageChange={setPage}
                 />
               }
@@ -341,10 +338,10 @@ export default function StaysBookingsPage() {
       </Tabs>
 
       <BookingFiltersSheet
-        key={filtersKey}
         open={filtersOpen}
         onOpenChange={setFiltersOpen}
-        filters={filters}
+        draft={draftFilters}
+        onDraftChange={setDraftFilters}
         onApply={setFilters}
         bookings={inCurrentTab}
         properties={properties}

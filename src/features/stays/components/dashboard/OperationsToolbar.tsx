@@ -1,4 +1,4 @@
-import { NativeSelect } from "@/components/ui";
+import { StaysSelect } from "../StaysForm";
 import {
   DASHBOARD_COLUMNS,
   PROPERTY_STATUS_FILTERS,
@@ -37,18 +37,16 @@ export default function OperationsToolbar({
         <label htmlFor="dashboard-status" className="mb-1.5 block text-caption font-semibold text-muted">
           Filter by status
         </label>
-        <NativeSelect
+        <StaysSelect
           id="dashboard-status"
+          options={PROPERTY_STATUS_FILTERS.map((option) => ({
+            value: option,
+            label: option === "All" ? "All properties" : option,
+          }))}
           value={status}
           onChange={(event) => onStatusChange(event.target.value as PropertyStatusFilter)}
           className="h-9 w-48 text-sm"
-        >
-          {PROPERTY_STATUS_FILTERS.map((option) => (
-            <option key={option} value={option}>
-              {option === "All" ? "All properties" : option}
-            </option>
-          ))}
-        </NativeSelect>
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-1">

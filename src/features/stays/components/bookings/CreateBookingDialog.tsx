@@ -1,6 +1,8 @@
 import { useRef, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Dialog, DialogContent, Field, Input, Money, NativeSelect, Textarea } from "@/components/ui";
+import { Button, Dialog, DialogContent, Field, Input, Money, Textarea } from "@/components/ui";
+import { StaysSelect } from "../StaysForm";
+import DatePicker from "@/components/forms/DatePicker";
 import { getErrorMessage } from "@/lib/errorHandler";
 import type { Booking } from "@/types/stays";
 import { createStayBooking, listProperties, STAYS_KEYS } from "../../api";
@@ -89,7 +91,7 @@ export function CreateBookingDialog({ open, onOpenChange, onCreated }: Props) {
       reset();
       onCreated(booking);
     } catch (error) {
-      setSubmitError(getErrorMessage(error) || "We couldn't create the booking. Try again.");
+      setSubmitError(getErrorMessage(error) || "We couldn't create the reservation. Try again.");
     } finally {
       setSaving(false);
     }
@@ -99,7 +101,7 @@ export function CreateBookingDialog({ open, onOpenChange, onCreated }: Props) {
     <Dialog open={open} onOpenChange={close}>
       <DialogContent
         size="md"
-        title="Create booking"
+        title="Create reservation"
         description="Record a walk-in or phone reservation against one of your rooms."
         footer={
           <>
@@ -107,38 +109,39 @@ export function CreateBookingDialog({ open, onOpenChange, onCreated }: Props) {
               Cancel
             </Button>
             <Button variant="primary" type="submit" form="create-booking" loading={saving}>
-              Create booking
+              Create reservation
             </Button>
           </>
         }
       >
         <form ref={formRef} id="create-booking" noValidate onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
           <Field label="Property" required error={errors.propertyId} wide>
-            <NativeSelect
+            <StaysSelect
+              options={properties.map((item) => ({ value: item.id, label: item.name }))}
               value={form.propertyId}
               disabled={propertiesQuery.isLoading || !properties.length}
+              placeholder={
+                propertiesQuery.isLoading
+                  ? "Loading properties…"
+                  : properties.length
+                    ? "Select a property"
+                    : "No properties yet"
+              }
               onChange={(event) => update({ propertyId: event.target.value, roomId: "" })}
-            >
-              <option value="">
-                {propertiesQuery.isLoading ? "Loading properties…" : properties.length ? "Select a property" : "No properties yet"}
-              </option>
-              {properties.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </NativeSelect>
+            />
           </Field>
 
           <Field label="Room" required error={errors.roomId} wide>
-            <NativeSelect value={form.roomId} disabled={!property} onChange={(event) => update({ roomId: event.target.value })}>
-              <option value="">{property ? "Select a room" : "Select a property first"}</option>
-              {(property?.rooms ?? []).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name || item.kind || "Room"}
-                </option>
-              ))}
-            </NativeSelect>
+            <StaysSelect
+              options={(property?.rooms ?? []).map((item) => ({
+                value: item.id,
+                label: item.name || item.kind || "Room",
+              }))}
+              value={form.roomId}
+              disabled={!property}
+              placeholder={property ? "Select a room" : "Select a property first"}
+              onChange={(event) => update({ roomId: event.target.value })}
+            />
           </Field>
 
           <Field label="Guest name" required error={errors.guestName} wide>
@@ -171,15 +174,14 @@ export function CreateBookingDialog({ open, onOpenChange, onCreated }: Props) {
           </Field>
 
           <Field label="Check-in" required error={errors.checkIn}>
-            <Input type="date" value={form.checkIn} onChange={(event) => update({ checkIn: event.target.value })} />
+            <DatePicker value={form.checkIn} onChange={(value) => update({ checkIn: value })} />
           </Field>
 
           <Field label="Check-out" required error={errors.checkOut}>
-            <Input
-              type="date"
+            <DatePicker
               value={form.checkOut}
-              min={form.checkIn || undefined}
-              onChange={(event) => update({ checkOut: event.target.value })}
+              minDate={form.checkIn || undefined}
+              onChange={(value) => update({ checkOut: value })}
             />
           </Field>
 

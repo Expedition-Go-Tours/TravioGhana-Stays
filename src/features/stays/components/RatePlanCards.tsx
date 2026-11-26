@@ -77,6 +77,7 @@ export default function RatePlanCards({
                   key={editing.plan?.id || "new"}
                   room={room}
                   plan={editing.plan || null}
+                  plans={property.ratePlans || []}
                   onCancel={() => setEditing(null)}
                   onSave={onSavePlan}
                   onDelete={onDeletePlan}
@@ -98,7 +99,7 @@ export default function RatePlanCards({
                         </small>
                       </div>
                       <b className="whitespace-nowrap text-base font-semibold text-emerald-700">
-                        {formatMoney(planPrice(plan, room))}
+                        {formatMoney(planPrice(plan, room, property.ratePlans || []))}
                       </b>
                     </div>
                     <div className="mb-[15px] flex flex-wrap gap-[5px]">

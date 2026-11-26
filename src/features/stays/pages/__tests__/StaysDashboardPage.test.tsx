@@ -95,6 +95,12 @@ function setWide(wide: boolean) {
   );
 }
 
+/** Open a Radix Select by its label and choose an option. */
+async function pickSelect(user: ReturnType<typeof userEvent.setup>, label: string, option: string) {
+  await user.click(screen.getByLabelText(label));
+  await user.click(await screen.findByRole("option", { name: option }));
+}
+
 const search = () => new URLSearchParams(screen.getByTestId("location").textContent?.split("?")[1] ?? "");
 
 function propertyRows() {
@@ -192,6 +198,27 @@ describe("StaysDashboardPage — operations homepage", () => {
     expect(within(rows[2]).getByText("Under review")).toBeTruthy();
   });
 
+  it("shows a property's cover from the properties list when the dashboard omits it", async () => {
+    setWide(true);
+    const cover = "https://cdn.example.com/akwaaba-cover.jpg";
+    await staysMock.updateProperty("p1", { photos: [cover] });
+
+    const dashboard = await staysMock.getDashboard({ period: "month-to-date", compare: "none" });
+    fetchDashboard.mockResolvedValueOnce({
+      ...dashboard,
+      properties: dashboard.properties?.map((row) => ({ ...row, photo: null })),
+    });
+
+    renderPage();
+    await screen.findByRole("region", { name: "Happening today" });
+    const table = await screen.findByRole("table", { name: "Property operations" });
+
+    await waitFor(() => {
+      const covers = within(table).getAllByTestId("dashboard-property-photo");
+      expect(covers.some((image) => image.getAttribute("src") === cover)).toBe(true);
+    });
+  });
+
   it("labels mock numbers as demo data, and only in mock mode", async () => {
     const { unmount } = renderPage();
     await screen.findByRole("region", { name: "Happening today" });
@@ -209,7 +236,7 @@ describe("StaysDashboardPage — operations homepage", () => {
     renderPage();
     await screen.findByRole("region", { name: "Happening today" });
 
-    await user.selectOptions(screen.getByLabelText("Filter by location"), "Kumasi");
+    await pickSelect(user, "Filter by location", "Kumasi (1)");
     await waitFor(() => expect(propertyRows()).toHaveLength(1));
     expect(propertyRows()[0].textContent).toContain("Kumasi Gardens Lodge");
     expect(search().get("location")).toBe("Kumasi");
@@ -217,13 +244,13 @@ describe("StaysDashboardPage — operations homepage", () => {
     await user.click(screen.getByRole("button", { name: "Reset filters" }));
     await waitFor(() => expect(propertyRows()).toHaveLength(3));
 
-    await user.type(screen.getByLabelText("Filter by property ID or name"), "akwaaba");
+    await user.type(screen.getByLabelText("Filter by property name"), "akwaaba");
     await waitFor(() => expect(propertyRows()).toHaveLength(1));
     expect(propertyRows()[0].textContent).toContain("Akwaaba Coast Hotel");
     expect(search().get("q")).toBe("akwaaba");
 
     await user.click(screen.getByRole("button", { name: "Reset filters" }));
-    await user.selectOptions(screen.getByLabelText("Filter by status"), "Paused");
+    await pickSelect(user, "Filter by status", "Paused");
     await waitFor(() => expect(propertyRows()).toHaveLength(1));
     expect(propertyRows()[0].textContent).toContain("Kumasi Gardens Lodge");
     expect(search().get("status")).toBe("Paused");
@@ -237,7 +264,6 @@ describe("StaysDashboardPage — operations homepage", () => {
     const table = await screen.findByRole("table", { name: "Property operations" });
     const headers = within(table).getAllByRole("columnheader").map((cell) => cell.textContent);
     expect(headers).toEqual([
-      "ID",
       "Property",
       "Status on Travio",
       "Arrivals in next 48 hours",
@@ -295,7 +321,6 @@ describe("StaysDashboardPage — operations homepage", () => {
     const table = await screen.findByRole("table", { name: "Property performance" });
     const headers = within(table).getAllByRole("columnheader").map((cell) => cell.textContent);
     expect(headers).toEqual([
-      "ID",
       "Property",
       "Booked avg. daily rate",
       "Stayed avg. daily rate",
@@ -319,7 +344,7 @@ describe("StaysDashboardPage — operations homepage", () => {
     await user.click(screen.getByRole("tab", { name: "Performance" }));
     await screen.findByRole("region", { name: "Your overall performance" });
 
-    await user.selectOptions(screen.getByLabelText("Compare with"), "previous-period");
+    await pickSelect(user, "Compare with", "Previous period");
     await user.click(screen.getByRole("button", { name: "Show data" }));
     await waitFor(() =>
       expect(fetchDashboard).toHaveBeenLastCalledWith({
@@ -330,7 +355,7 @@ describe("StaysDashboardPage — operations homepage", () => {
     expect(await screen.findByText("Month-to-date · Previous period")).toBeTruthy();
     expect((await screen.findAllByText(/vs previous/)).length).toBeGreaterThan(0);
 
-    await user.selectOptions(screen.getByLabelText("Filter by period"), "last-30-days");
+    await pickSelect(user, "Filter by period", "Last 30 days");
     await user.click(screen.getByRole("button", { name: "Show data" }));
     await waitFor(() =>
       expect(fetchDashboard).toHaveBeenLastCalledWith({
@@ -359,7 +384,6 @@ describe("StaysDashboardPage — operations homepage", () => {
     const table = await screen.findByRole("table", { name: "Property settings" });
     const headers = within(table).getAllByRole("columnheader").map((cell) => cell.textContent);
     expect(headers).toEqual([
-      "ID",
       "Property",
       "Travio Rewards",
       "Preferred",
@@ -380,7 +404,7 @@ describe("StaysDashboardPage — operations homepage", () => {
     renderPage();
     await screen.findByRole("region", { name: "Happening today" });
 
-    await user.selectOptions(screen.getByLabelText("Filter by location"), "Kumasi");
+    await pickSelect(user, "Filter by location", "Kumasi (1)");
 
     await user.click(screen.getByRole("tab", { name: "Performance" }));
     const performanceList = await screen.findByRole("list", { name: "Property performance" });

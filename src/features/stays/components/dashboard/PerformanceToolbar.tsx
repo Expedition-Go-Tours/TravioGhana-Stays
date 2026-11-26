@@ -1,4 +1,5 @@
-import { Button, NativeSelect } from "@/components/ui";
+import { Button } from "@/components/ui";
+import { StaysSelect } from "../StaysForm";
 import type {
   DashboardPerformanceComparison,
   DashboardPerformancePeriod,
@@ -46,35 +47,25 @@ export default function PerformanceToolbar({
           <label htmlFor="performance-period" className="mb-1.5 block text-caption font-semibold text-muted">
             Filter by period
           </label>
-          <NativeSelect
+          <StaysSelect
             id="performance-period"
+            options={PERFORMANCE_PERIOD_OPTIONS}
             value={period}
             onChange={(event) => onPeriodChange(event.target.value as DashboardPerformancePeriod)}
             className="h-9 w-44 text-sm"
-          >
-            {PERFORMANCE_PERIOD_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </NativeSelect>
+          />
         </div>
         <div>
           <label htmlFor="performance-comparison" className="mb-1.5 block text-caption font-semibold text-muted">
             Compare with
           </label>
-          <NativeSelect
+          <StaysSelect
             id="performance-comparison"
+            options={PERFORMANCE_COMPARISON_OPTIONS}
             value={comparison}
             onChange={(event) => onComparisonChange(event.target.value as DashboardPerformanceComparison)}
             className="h-9 w-44 text-sm"
-          >
-            {PERFORMANCE_COMPARISON_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </NativeSelect>
+          />
         </div>
         <Button variant="secondary" size="sm" onClick={onShowData} loading={loading} className="h-9">
           Show data

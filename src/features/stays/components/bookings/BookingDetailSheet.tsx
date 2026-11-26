@@ -74,8 +74,8 @@ export function BookingDetailSheet({ bookingId, booking, loading, currency, onCl
     <>
       <Sheet open={Boolean(bookingId)} onOpenChange={(open) => !open && onClose()}>
         <SheetContent
-          title={booking ? booking.guest : "Booking"}
-          description={booking ? `Booking ${booking.id}` : bookingId ? `Booking ${bookingId}` : undefined}
+          title={booking ? booking.guest : "Reservation"}
+          description={booking ? `Reservation ${booking.id}` : bookingId ? `Reservation ${bookingId}` : undefined}
           footer={
             actions.length > 0 ? (
               <div className="flex w-full flex-wrap-reverse items-center justify-between gap-2">
@@ -104,7 +104,7 @@ export function BookingDetailSheet({ bookingId, booking, loading, currency, onCl
           }
         >
           {loading ? (
-            <div className="space-y-3" role="status" aria-label="Loading booking">
+            <div className="space-y-3" role="status" aria-label="Loading reservation">
               <Skeleton height={56} className="rounded-xl" />
               <Skeleton height={120} className="rounded-xl" />
               <Skeleton height={120} className="rounded-xl" />
@@ -113,9 +113,9 @@ export function BookingDetailSheet({ bookingId, booking, loading, currency, onCl
             <EmptyState
               compact
               icon={<Ticket size={22} />}
-              title="We couldn't find this booking"
+              title="We couldn't find this reservation"
               description="It may have been removed, or the link is out of date."
-              action={<Button onClick={onClose}>Back to bookings</Button>}
+              action={<Button onClick={onClose}>Back to reservations</Button>}
             />
           ) : (
             <div>
@@ -172,7 +172,7 @@ export function BookingDetailSheet({ bookingId, booking, loading, currency, onCl
 
               <Section title="Payment">
                 <dl>
-                  <Row label="Booking total">
+                  <Row label="Reservation total">
                     <Money amount={booking.amount} currency={booking.currency ?? currency} className="text-base font-bold" />
                   </Row>
                   {booking.refundAmount != null && (
@@ -205,14 +205,14 @@ export function BookingDetailSheet({ bookingId, booking, loading, currency, onCl
       <ConfirmDialog
         open={confirming !== null}
         onOpenChange={(open) => !open && setConfirming(null)}
-        title="Cancel this booking?"
+        title="Cancel this reservation?"
         description={
           booking
             ? `${booking.guest}'s stay on ${formatStayDate(booking.from)} will be cancelled. This can't be undone.`
             : undefined
         }
-        confirmLabel="Cancel booking"
-        cancelLabel="Keep booking"
+        confirmLabel="Cancel reservation"
+        cancelLabel="Keep reservation"
         loading={pendingStatus === confirming?.to}
         onConfirm={confirm}
       />

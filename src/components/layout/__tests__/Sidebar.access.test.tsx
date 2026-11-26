@@ -66,7 +66,7 @@ import { permissionsForRoles, TEAM_ROLES } from '@/config/teamRoles';
 import { PAGE_ACCESS } from '@/config/pageAccess';
 
 const NAV_LABELS = [
-  'Dashboard', 'Properties', 'Bookings', 'Customers', 'Availability', 'Rate',
+  'Dashboard', 'Properties', 'Reservations', 'Customers', 'Availability', 'Rate',
   'Reviews', 'Special Offers', 'Cancellation', 'Analytics', 'Finance',
   'Notifications', 'Verification', 'Settings', 'Team',
 ];
@@ -129,7 +129,7 @@ describe('sidebar navigation per team role', () => {
     renderSidebar();
 
     const shown = shownNav();
-    expect(shown).toEqual(expect.arrayContaining(['Properties', 'Bookings', 'Special Offers', 'Analytics', 'Availability', 'Rate', 'Reviews']));
+    expect(shown).toEqual(expect.arrayContaining(['Properties', 'Reservations', 'Special Offers', 'Analytics', 'Availability', 'Rate', 'Reviews']));
     expect(shown).not.toContain('Finance');
     expect(shown).not.toContain('Verification');
     expect(shown).not.toContain('Customers');
@@ -142,7 +142,7 @@ describe('sidebar navigation per team role', () => {
     const shown = shownNav();
     expect(shown).toEqual(expect.arrayContaining(['Finance', 'Analytics']));
     expect(shown).not.toContain('Properties');
-    expect(shown).not.toContain('Bookings');
+    expect(shown).not.toContain('Reservations');
     expect(shown).not.toContain('Customers');
   });
 

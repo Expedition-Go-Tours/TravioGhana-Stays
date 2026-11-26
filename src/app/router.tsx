@@ -24,6 +24,8 @@ import StaysBookingsPage from "@/features/stays/pages/StaysBookingsPage";
 import StaysAvailabilityPage from "@/features/stays/pages/StaysAvailabilityPage";
 import StaysRatesPage from "@/features/stays/pages/StaysRatesPage";
 import StaysOffersPage from "@/features/stays/pages/StaysOffersPage";
+import StaysPropertyDealPage from "@/features/stays/pages/StaysPropertyDealPage";
+import StaysPromotionSettingsPage from "@/features/stays/pages/StaysPromotionSettingsPage";
 import StaysOfferBuilderPage from "@/features/stays/pages/StaysOfferBuilderPage";
 import StaysCancellationPage from "@/features/stays/pages/StaysCancellationPage";
 import StaysFinancePage from "@/features/stays/pages/StaysFinancePage";
@@ -124,6 +126,23 @@ export const router = createBrowserRouter([
                   { path: "stays/availability", element: <StaysAvailabilityPage /> },
                   { path: "stays/rates", element: <StaysRatesPage /> },
                   { path: "stays/special-offers", element: <StaysOffersPage /> },
+                  { path: "stays/special-offers/property-deal", element: <StaysPropertyDealPage /> },
+                  {
+                    path: "stays/special-offers/basic-deal",
+                    element: <StaysPromotionSettingsPage kind="basic-deal" />,
+                  },
+                  {
+                    path: "stays/special-offers/early-booker",
+                    element: <StaysPromotionSettingsPage kind="early-booker" />,
+                  },
+                  {
+                    path: "stays/special-offers/last-minute",
+                    element: <StaysPromotionSettingsPage kind="last-minute" />,
+                  },
+                  {
+                    path: "stays/special-offers/late-escape",
+                    element: <StaysPromotionSettingsPage kind="late-escape" />,
+                  },
                   { path: "stays/special-offers/build/:id?/:step?", element: <StaysOfferBuilderPage /> },
                   { path: "stays/cancellation", element: <StaysCancellationPage /> },
                   { path: "stays/finance", element: <StaysFinancePage /> },

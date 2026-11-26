@@ -32,7 +32,7 @@ function PlanSection({ title, children }: any) {
   );
 }
 
-export default function RatePlanForm({ room, plan, onCancel, onSave, onDelete }: any) {
+export default function RatePlanForm({ room, plan, plans = [], onCancel, onSave, onDelete }: any) {
   // Mount-fresh state: the parent remounts per open (`key`), so cancel
   // discards edits without a reset effect. A new plan drops the default
   // factory's synthetic id so the API creates a fresh plan instead of
@@ -143,7 +143,7 @@ export default function RatePlanForm({ room, plan, onCancel, onSave, onDelete }:
             </StaysField>
             <StaysField label="Resulting nightly price">
               <div className="flex min-h-[42px] items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800">
-                {formatMoney(planPrice({ ...form, price: form.price }, room))}
+                {formatMoney(planPrice({ ...form, price: form.price }, room, plans))}
               </div>
             </StaysField>
           </>

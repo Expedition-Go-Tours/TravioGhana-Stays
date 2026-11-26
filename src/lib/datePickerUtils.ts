@@ -5,6 +5,7 @@ export const DATE_PICKER_DISPLAY_FORMAT = "dd/MM/yyyy";
 export function parsePickerDate(value) {
   if (!value) return null;
   if (value instanceof Date) return isValid(value) ? value : null;
+  if (typeof value !== "string") return null;
 
   const parsed = parseISO(value);
   return isValid(parsed) ? parsed : null;

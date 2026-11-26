@@ -13,6 +13,7 @@
  * `permission` always comes from PAGE_ACCESS so the route guards, the
  * sidebar and search agree by construction.
  */
+import type { ComponentType } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -31,8 +32,31 @@ import {
   UserPlus,
 } from "@/features/stays/icons";
 import { PAGE_ACCESS } from "@/config/pageAccess";
+import { AVAILABILITY_SECTIONS } from "@/features/stays/config/availabilityNav";
 
-export const STAYS_NAV_GROUPS = [
+type NavIcon = ComponentType<any>;
+type StaysNavChild = {
+  label: string;
+  tab?: string;
+  section?: string;
+  keywords?: readonly string[];
+  badge?: string;
+};
+type StaysNavItem = {
+  label: string;
+  path: string;
+  icon: NavIcon;
+  iconName: string;
+  permission: string | null;
+  keywords: string[];
+  end?: boolean;
+  match?: (location: { pathname: string; search: string }) => boolean;
+  children?: StaysNavChild[];
+  showChildren?: boolean;
+};
+type StaysNavGroup = { label: string; items: StaysNavItem[] };
+
+export const STAYS_NAV_GROUPS: StaysNavGroup[] = [
   {
     label: "STAYS",
     items: [
@@ -55,12 +79,12 @@ export const STAYS_NAV_GROUPS = [
         keywords: ["listings", "hotel", "apartment", "rooms", "accommodation"],
       },
       {
-        label: "Bookings",
+        label: "Reservations",
         path: "/stays/bookings",
         icon: Ticket,
         iconName: "Ticket",
         permission: PAGE_ACCESS["/stays/bookings"],
-        keywords: ["reservations", "guests", "stays"],
+        keywords: ["bookings", "reservations", "guests", "stays"],
       },
       {
         label: "Customers",
@@ -77,6 +101,15 @@ export const STAYS_NAV_GROUPS = [
         iconName: "CalendarDays",
         permission: PAGE_ACCESS["/stays/availability"],
         keywords: ["calendar", "inventory", "blocked", "dates"],
+        // Availability is the workspace's only nested menu: the sub-pages
+        // share one route and switch on `?section=`. `showChildren` makes the
+        // sidebar render the disclosure instead of keeping this for search.
+        showChildren: true,
+        children: AVAILABILITY_SECTIONS.map((section) => ({
+          label: section.label,
+          section: section.slug,
+          keywords: section.keywords,
+        })),
       },
       {
         label: "Rate",

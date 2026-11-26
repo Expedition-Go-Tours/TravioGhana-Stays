@@ -9,7 +9,6 @@ export const PROPERTY_STATUS_FILTERS = ["All", "Live", "Paused", "Draft", "Under
 export type PropertyStatusFilter = (typeof PROPERTY_STATUS_FILTERS)[number];
 
 export type DashboardColumnKey =
-  | "id"
   | "property"
   | "status"
   | "arrivalsNext48h"
@@ -25,7 +24,6 @@ export type DashboardColumn = {
 };
 
 export const DASHBOARD_COLUMNS: DashboardColumn[] = [
-  { key: "id", label: "ID", mandatory: true },
   { key: "property", label: "Property", mandatory: true },
   { key: "status", label: "Status on Travio", mandatory: true },
   { key: "arrivalsNext48h", label: "Arrivals in next 48 hours" },

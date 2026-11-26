@@ -2,7 +2,7 @@
 // Migration marker: ported from JavaScript; props/data shapes are not annotated yet.
 // Remove this directive once the file is typed — `npm run typecheck` then enforces it.
 import { AnimatePresence, motion } from "framer-motion";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import RefundClaimsPage from "./StaysRefundClaimsPage";
 import { useSearchParams } from "react-router-dom";
@@ -13,7 +13,7 @@ import {
   Calendar, Info, Search, Lock, XCircle, Undo2,
 } from "@/features/stays/icons";
 import { toast } from "sonner";
-import { Badge, StatusBadge } from "@/components/ui";
+import { Badge, Popover, PopoverContent, PopoverTrigger, StatusBadge } from "@/components/ui";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { PayoutScheduleSummary } from "../components/finance/StaysPayoutScheduleCard";
 import PayoutMethodFormSheet from "../components/finance/StaysPayoutMethodFormSheet";
@@ -62,15 +62,11 @@ const INITIAL_REFUND_FORM = { bookingId: "", reason: "", description: "" };
 
 const PAGE_SIZE = 20;
 
-// Searchable booking picker rendered through a portal so it can never be
-// clipped by the modal's scroll container. Closes on Escape, outside click,
-// or scroll of anything other than its own panel.
+// Searchable booking picker on a Radix Popover: the portal keeps it above the
+// modal, and Radix owns placement, outside-click, Escape and focus return.
 function BookingCombobox({ options, value, onChange }: any) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const triggerRef = useRef(null);
-  const panelRef = useRef(null);
-  const [style, setStyle] = useState(null);
 
   const selected = options.find((b) => b.id === value) || null;
 
@@ -82,119 +78,82 @@ function BookingCombobox({ options, value, onChange }: any) {
     );
   }, [options, query]);
 
-  const place = useCallback(() => {
-    const el = triggerRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - r.bottom - 16;
-    const flip = spaceBelow < 180 && r.top > 240;
-    setStyle({
-      position: "fixed",
-      left: r.left,
-      width: r.width,
-      ...(flip
-        ? { bottom: window.innerHeight - r.top + 4, maxHeight: Math.min(288, r.top - 16) }
-        : { top: r.bottom + 4, maxHeight: Math.min(288, Math.max(160, spaceBelow)) }),
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    place();
-    const onDown = (e) => {
-      if (triggerRef.current?.contains(e.target) || panelRef.current?.contains(e.target)) return;
-      setOpen(false);
-    };
-    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    const onScroll = (e) => {
-      if (panelRef.current?.contains(e.target) || triggerRef.current?.contains(e.target)) return;
-      setOpen(false);
-    };
-    window.addEventListener("resize", place);
-    window.addEventListener("scroll", onScroll, true);
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", onScroll, true);
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open, place]);
-
   return (
-    <div className="relative">
-      <button
-        type="button"
-        ref={triggerRef}
-        onClick={() => { setOpen((o) => !o); setQuery(""); }}
-        className={cn(
-          "w-full flex items-center justify-between gap-2 px-3.5 py-2.5 border rounded-lg text-sm bg-white text-left transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400",
-          selected ? "border-gray-200" : "border-gray-200 text-gray-400"
-        )}
-      >
-        {selected ? (
-          <span className="min-w-0">
-            <span className="block font-medium text-gray-900 truncate">{selected.bookingNumber}</span>
-            <span className="block text-xs text-gray-500 truncate">
-              {selected.property} · {formatCurrency(selected.grossAmount, selected.currency)}
-            </span>
-          </span>
-        ) : (
-          <span>Select a booking…</span>
-        )}
-        <ChevronDown size={16} className={cn("text-gray-400 shrink-0 transition-transform", open && "rotate-180")} />
-      </button>
-
-      {open && createPortal(
-        <div
-          ref={panelRef}
-          style={style}
-          className="bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden flex flex-col z-[60]"
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        setQuery("");
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "w-full flex items-center justify-between gap-2 px-3.5 py-2.5 border rounded-lg text-sm bg-white text-left transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400",
+            selected ? "border-gray-200" : "border-gray-200 text-gray-400"
+          )}
         >
-          <div className="p-2 border-b border-gray-100 shrink-0">
-            <div className="relative">
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                autoFocus
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search booking #, property or customer…"
-                className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-md text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"
-              />
-            </div>
+          {selected ? (
+            <span className="min-w-0">
+              <span className="block font-medium text-gray-900 truncate">{selected.bookingNumber}</span>
+              <span className="block text-xs text-gray-500 truncate">
+                {selected.property} · {formatCurrency(selected.grossAmount, selected.currency)}
+              </span>
+            </span>
+          ) : (
+            <span>Select a booking…</span>
+          )}
+          <ChevronDown size={16} className={cn("text-gray-400 shrink-0 transition-transform", open && "rotate-180")} />
+        </button>
+      </PopoverTrigger>
+
+      <PopoverContent className="p-0">
+        <div className="p-2 border-b border-gray-100 shrink-0">
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search booking #, property or customer…"
+              className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-md text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"
+            />
           </div>
-          <div className="overflow-y-auto">
-            {filtered.length === 0 ? (
-              <p className="px-3 py-6 text-center text-sm text-gray-400">No bookings match “{query.trim()}”</p>
-            ) : (
-              filtered.map((b) => (
-                <button
-                  key={b.id}
-                  type="button"
-                  onClick={() => { onChange(b.id); setOpen(false); setQuery(""); }}
-                  className={cn(
-                    "w-full px-3 py-2.5 text-left hover:bg-gray-50 transition-colors",
-                    value === b.id && "bg-emerald-50"
-                  )}
-                >
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-gray-900">{b.bookingNumber}</span>
-                    <span className="text-sm font-semibold text-gray-700 shrink-0 tabular-nums">
-                      {formatCurrency(b.grossAmount, b.currency)}
-                    </span>
+        </div>
+        <div className="overflow-y-auto">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-6 text-center text-sm text-gray-400">No bookings match “{query.trim()}”</p>
+          ) : (
+            filtered.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => {
+                  onChange(b.id);
+                  setOpen(false);
+                  setQuery("");
+                }}
+                className={cn(
+                  "w-full px-3 py-2.5 text-left hover:bg-gray-50 transition-colors",
+                  value === b.id && "bg-emerald-50"
+                )}
+              >
+                <span className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-gray-900">{b.bookingNumber}</span>
+                  <span className="text-sm font-semibold text-gray-700 shrink-0 tabular-nums">
+                    {formatCurrency(b.grossAmount, b.currency)}
                   </span>
-                  <span className="block text-xs text-gray-500 truncate">
-                    {b.property}{b.travelDate ? ` · ${formatDate(b.travelDate)}` : ""}{b.customer ? ` · ${b.customer}` : ""}
-                  </span>
-                </button>
-              ))
-            )}
-          </div>
-        </div>,
-        document.body
-      )}
-    </div>
+                </span>
+                <span className="block text-xs text-gray-500 truncate">
+                  {b.property}{b.travelDate ? ` · ${formatDate(b.travelDate)}` : ""}{b.customer ? ` · ${b.customer}` : ""}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

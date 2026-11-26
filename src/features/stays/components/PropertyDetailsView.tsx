@@ -32,6 +32,7 @@ import { roomPeople } from "../utils/rooms";
 import { planMetaChips } from "../utils/ratePlans";
 import { statusTone } from "../utils/status";
 import { staysBuilderStepPath, staysCategoryPath } from "../config/staysSteps";
+import { normalizePaymentMode } from "../config/constants";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 
 /**
@@ -586,17 +587,6 @@ export default function PropertyDetailsView({
               onEdit={onEdit}
             />
             <SettingRow
-              label="Channel manager"
-              value={
-                property.channelManager?.connected
-                  ? property.channelManager?.name || "Connected"
-                  : "Not connected"
-              }
-              edit={{ label: "Edit channel manager", path: builder("basic-information", "channel-manager") }}
-              canEdit={canEditResolved}
-              onEdit={onEdit}
-            />
-            <SettingRow
               label="Booking preference"
               value={
                 property.bookingPreference === "request"
@@ -609,7 +599,7 @@ export default function PropertyDetailsView({
             />
             <SettingRow
               label="Payments"
-              value={property.payments?.mode}
+              value={normalizePaymentMode(property.payments?.mode)}
               edit={{ label: "Edit payments", path: builder("property-setup", "payments") }}
               canEdit={canEditResolved}
               onEdit={onEdit}

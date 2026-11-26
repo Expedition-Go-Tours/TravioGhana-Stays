@@ -11,7 +11,6 @@ import {
   IconButton,
   Input,
   Money,
-  NativeSelect,
   ScoreBadge,
   StatCard,
   StatusBadge,
@@ -91,6 +90,7 @@ export default function UiGalleryPage() {
   const setMode = useThemeStore((s) => s.setMode);
   const [instant, setInstant] = useState(true);
   const [selectValue, setSelectValue] = useState("Hotel");
+  const [currency, setCurrency] = useState("USD");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [tablePage, setTablePage] = useState(1);
 
@@ -319,12 +319,8 @@ export default function UiGalleryPage() {
               <Field label="Property type">
                 <StaysSelect options={["Hotel", "Guesthouse", "Apartment"]} value={selectValue} onChange={(e) => setSelectValue(e.target.value)} />
               </Field>
-              <Field label="Currency" hint="The native picker, best on phones">
-                <NativeSelect defaultValue="USD">
-                  <option>USD</option>
-                  <option>USD</option>
-                  <option>EUR</option>
-                </NativeSelect>
+              <Field label="Currency" hint="Radix Select, styled to match the inputs">
+                <StaysSelect options={["USD", "EUR", "GBP"]} value={currency} onChange={(e) => setCurrency(e.target.value)} />
               </Field>
               <Field label="Disabled">
                 <Input disabled value="Read only" readOnly />

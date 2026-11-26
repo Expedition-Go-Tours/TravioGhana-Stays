@@ -73,7 +73,6 @@ function PhoneCard({ row, currency, canOpen }: { row: DashboardPerformanceProper
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-3">
         <DashboardPropertyIdentity row={row} canOpen={canOpen} />
-        <span className="shrink-0 font-mono text-caption text-muted">{row.id}</span>
       </div>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-hairline pt-3 text-sm">
         <div>
@@ -131,7 +130,6 @@ export default function PerformanceTable({
   canOpenProperty: boolean;
 }) {
   const cellByKey: Record<PerformanceColumnKey, DataColumn<DashboardPerformanceProperty>["cell"]> = {
-    id: (row) => <span className="font-mono text-caption text-muted">{row.id}</span>,
     property: (row) => <DashboardPropertyIdentity row={row} canOpen={canOpenProperty} />,
     bookedAvgDailyRate: (row) => <Money amount={row.bookedAvgDailyRate} currency={currency} />,
     stayedAvgDailyRate: (row) => <Money amount={row.stayedAvgDailyRate} currency={currency} />,
@@ -155,8 +153,8 @@ export default function PerformanceTable({
     key: column.key,
     header: headerByKey[column.key] ?? column.label,
     cell: cellByKey[column.key],
-    sortable: column.key === "id",
-    className: column.key === "id" ? "w-16" : undefined,
+    sortable: column.key === "property",
+    sortValue: column.key === "property" ? (row) => row.name : undefined,
   }));
 
   return (
@@ -165,7 +163,6 @@ export default function PerformanceTable({
       columns={columns}
       rows={rows}
       density={density}
-      initialSort={{ key: "id", direction: "asc" }}
       getRowKey={(row) => row.id}
       renderCard={(row) => <PhoneCard row={row} currency={currency} canOpen={canOpenProperty} />}
       empty={

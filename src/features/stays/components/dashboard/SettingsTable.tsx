@@ -45,7 +45,6 @@ function PhoneCard({ row, canOpen }: { row: DashboardSettingsProperty; canOpen: 
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-3">
         <DashboardPropertyIdentity row={row} canOpen={canOpen} />
-        <span className="shrink-0 font-mono text-caption text-muted">{row.id}</span>
       </div>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-hairline pt-3 text-sm">
         <div>
@@ -92,7 +91,6 @@ export default function SettingsTable({
   canOpenProperty: boolean;
 }) {
   const cellByKey: Record<SettingsColumnKey, DataColumn<DashboardSettingsProperty>["cell"]> = {
-    id: (row) => <span className="font-mono text-caption text-muted">{row.id}</span>,
     property: (row) => <DashboardPropertyIdentity row={row} canOpen={canOpenProperty} />,
     rewards: (row) => <ProgramCell eligible={row.rewardsEligible} label="Travio Rewards" />,
     preferred: (row) => <ProgramCell eligible={row.preferredEligible} label="Preferred" />,
@@ -113,8 +111,8 @@ export default function SettingsTable({
     key: column.key,
     header: column.label,
     cell: cellByKey[column.key],
-    sortable: column.key === "id",
-    className: column.key === "id" ? "w-16" : undefined,
+    sortable: column.key === "property",
+    sortValue: column.key === "property" ? (row) => row.name : undefined,
   }));
 
   return (
@@ -123,7 +121,6 @@ export default function SettingsTable({
       columns={columns}
       rows={rows}
       density={density}
-      initialSort={{ key: "id", direction: "asc" }}
       getRowKey={(row) => row.id}
       renderCard={(row) => <PhoneCard row={row} canOpen={canOpenProperty} />}
       empty={

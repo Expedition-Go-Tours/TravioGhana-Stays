@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentType, type ReactNode } from "react";
+import { useEffect, useId, useState, type ComponentType, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate, type Location } from "react-router-dom";
 import { useSidebarStore } from "@/stores/sidebarStore";
 import { useAuthStore } from "@/stores/authStore";
@@ -13,7 +13,7 @@ import { describeRoles } from "@/config/teamRoles";
 import { STAYS_NAV_GROUPS } from "@/config/staysNav";
 import { LIVE_SITES } from "@/lib/platforms";
 import { Avatar, ConfirmDialog, Sheet, SheetContent, Tooltip } from "@/components/ui";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MOBILE_NAV_ID } from "./shell";
 
 /* ── Business identity ─────────────────────────────────────────────────────
@@ -141,12 +141,22 @@ const railHidden = "md:max-lg:hidden group-data-[rail=true]/sidebar:hidden";
 const railCenter =
   "md:max-lg:justify-center md:max-lg:px-0 group-data-[rail=true]/sidebar:justify-center group-data-[rail=true]/sidebar:px-0";
 
+type NavChild = {
+  label: string;
+  tab?: string;
+  section?: string;
+  keywords?: readonly string[];
+  badge?: string;
+};
+
 type NavEntry = {
   label: string;
   path: string;
   icon: ComponentType<{ size?: number; weight?: string; className?: string }>;
   end?: boolean;
   match?: (location: Location) => boolean;
+  children?: NavChild[];
+  showChildren?: boolean;
 };
 
 function isActive(item: NavEntry, location: Location) {
@@ -155,48 +165,180 @@ function isActive(item: NavEntry, location: Location) {
   return location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
 }
 
+function childHref(item: NavEntry, child: NavChild) {
+  if (child.section) return `${item.path}?section=${encodeURIComponent(child.section)}`;
+  if (child.tab) return `${item.path}?tab=${encodeURIComponent(child.tab)}`;
+  return item.path;
+}
+
 function NavItem({
   item,
   mode,
   showTooltip,
   onNavigate,
+  railMode = false,
 }: {
   item: NavEntry;
   mode: Mode;
   showTooltip: boolean;
   onNavigate?: () => void;
+  railMode?: boolean;
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const active = isActive(item, location);
   const Icon = item.icon;
+  const submenu = Boolean(item.showChildren && item.children?.length);
+  const onItemPath = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+  const activeSection = new URLSearchParams(location.search).get("section") || "calendar";
+  const activeChild =
+    submenu && onItemPath ? item.children!.find((child) => child.section === activeSection) : undefined;
+  const [expanded, setExpanded] = useState(Boolean(activeChild));
+  const submenuId = useId();
+
+  const linkClass = cn(
+    "relative flex h-11 min-w-0 flex-1 items-center gap-3 rounded-control px-3 text-[0.9375rem] font-medium transition-colors",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    active
+      ? "font-semibold text-brand-ink"
+      : submenu
+        ? "text-body group-hover/nav:text-ink"
+        : "text-body hover:bg-surface-strong hover:text-ink",
+    mode === "aside" && railCenter,
+  );
+
+  const activeBar = active && (
+    <span aria-hidden="true" className="absolute -left-3 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-brand" />
+  );
+
+  // The rail is too narrow for a nested list, so the icon opens a flyout.
+  if (submenu && railMode) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={item.label}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "relative flex h-11 w-full items-center gap-3 rounded-control px-3 text-[0.9375rem] font-medium transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              active ? "bg-brand-soft font-semibold text-brand-ink" : "text-body hover:bg-surface-strong hover:text-ink",
+              railCenter,
+            )}
+          >
+            {activeBar}
+            <Icon size={20} weight={active ? "fill" : "regular"} className="shrink-0" />
+            <span className={railSrOnly}>{item.label}</span>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="start" sideOffset={8} className="w-64">
+          <DropdownMenuLabel className="px-2 pb-1 pt-1 text-overline font-bold uppercase text-muted">
+            {item.label}
+          </DropdownMenuLabel>
+          {item.children!.map((child) => (
+            <DropdownMenuItem
+              key={child.label}
+              onSelect={() => navigate(childHref(item, child))}
+              aria-current={activeChild === child ? "page" : undefined}
+              className={cn(
+                "min-h-10 gap-2",
+                activeChild === child && "bg-brand-soft font-semibold text-brand-ink",
+              )}
+            >
+              <span className="min-w-0 flex-1 truncate">{child.label}</span>
+              {child.badge && (
+                <span className="shrink-0 rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-bold uppercase text-brand-ink">
+                  {child.badge}
+                </span>
+              )}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
 
   const link = (
     <NavLink
       to={item.path}
       end={item.end}
       onClick={onNavigate}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "relative flex h-11 items-center gap-3 rounded-control px-3 text-[0.9375rem] font-medium transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        active ? "bg-brand-soft font-semibold text-brand-ink" : "text-body hover:bg-surface-strong hover:text-ink",
-        mode === "aside" && railCenter,
-      )}
+      aria-current={active && !submenu ? "page" : submenu && activeChild ? "page" : undefined}
+      className={linkClass}
     >
-      {active && (
-        <span aria-hidden="true" className="absolute -left-3 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-brand" />
-      )}
+      {activeBar}
       <Icon size={20} weight={active ? "fill" : "regular"} className="shrink-0" />
       <span className={cn("truncate", mode === "aside" && railSrOnly)}>{item.label}</span>
     </NavLink>
   );
 
-  return showTooltip ? (
-    <Tooltip content={item.label} side="right">
-      {link}
-    </Tooltip>
-  ) : (
-    link
+  if (!submenu) {
+    return showTooltip ? (
+      <Tooltip content={item.label} side="right">
+        {link}
+      </Tooltip>
+    ) : (
+      link
+    );
+  }
+
+  return (
+    <div>
+      <div
+        className={cn(
+          "group/nav relative flex items-center rounded-control transition-colors",
+          active ? "bg-brand-soft" : "hover:bg-surface-strong",
+        )}
+      >
+        {link}
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          aria-expanded={expanded}
+          aria-controls={submenuId}
+          aria-label={`${expanded ? "Collapse" : "Expand"} ${item.label} menu`}
+          className="mr-1 grid h-9 w-9 shrink-0 place-items-center rounded-control text-muted transition-colors group-hover/nav:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ChevronDown
+            size={14}
+            aria-hidden="true"
+            className={cn("transition-transform duration-200", expanded && "rotate-180")}
+          />
+        </button>
+      </div>
+
+      {expanded && (
+        <ul id={submenuId} className="mt-0.5 space-y-0.5 pb-1">
+          {item.children!.map((child) => {
+            const isCurrent = activeChild === child;
+            return (
+              <li key={child.label}>
+                <Link
+                  to={childHref(item, child)}
+                  onClick={onNavigate}
+                  aria-current={isCurrent ? "page" : undefined}
+                  className={cn(
+                    "flex min-h-9 items-center gap-2 rounded-control py-2 pl-11 pr-3 text-sm transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    isCurrent
+                      ? "bg-brand-soft/70 font-semibold text-brand-ink"
+                      : "text-body hover:bg-surface-strong hover:text-ink",
+                  )}
+                >
+                  <span className="min-w-0 flex-1 truncate">{child.label}</span>
+                  {child.badge && (
+                    <span className="shrink-0 rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-bold uppercase text-brand-ink">
+                      {child.badge}
+                    </span>
+                  )}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -300,6 +442,7 @@ function SidebarBody({
   onNavigate,
   onSignOut,
   header,
+  railMode = false,
 }: {
   identity: Identity;
   mode: Mode;
@@ -307,8 +450,11 @@ function SidebarBody({
   onNavigate?: () => void;
   onSignOut: () => void;
   header?: ReactNode;
+  railMode?: boolean;
 }) {
   const { hasPermission } = useTeamRole();
+  const location = useLocation();
+  const activeSection = new URLSearchParams(location.search).get("section") || "";
   const groups = STAYS_NAV_GROUPS.map((group) => ({
     ...group,
     items: (group.items as (NavEntry & { permission?: string | null })[]).filter(
@@ -338,8 +484,14 @@ function SidebarBody({
             )}
             <ul className="space-y-0.5">
               {group.items.map((item) => (
-                <li key={item.path}>
-                  <NavItem item={item} mode={mode} showTooltip={showTooltips} onNavigate={onNavigate} />
+                <li
+                  key={
+                    item.showChildren
+                      ? `${item.path}:${location.pathname}:${activeSection}`
+                      : item.path
+                  }
+                >
+                  <NavItem item={item} mode={mode} showTooltip={showTooltips} onNavigate={onNavigate} railMode={railMode} />
                 </li>
               ))}
             </ul>
@@ -434,6 +586,7 @@ export default function Sidebar() {
           mode="aside"
           showTooltips={railShowsTooltips}
           onSignOut={askSignOut}
+          railMode={isCollapsed || !atLeastLg}
           header={
             <div className={cn("flex h-16 shrink-0 items-center justify-between gap-2 border-b border-hairline px-3", railCenter)}>
               {/* The collapsed rail has no room for it; the tablet rail hides it with CSS. */}

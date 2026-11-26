@@ -2,7 +2,6 @@ import type { DashboardPropertyRow, DashboardSettings, DashboardSettingsProperty
 import { toCsv } from "./dashboardModel";
 
 export type SettingsColumnKey =
-  | "id"
   | "property"
   | "rewards"
   | "preferred"
@@ -18,7 +17,6 @@ export type SettingsColumn = {
 };
 
 export const SETTINGS_COLUMNS: SettingsColumn[] = [
-  { key: "id", label: "ID", mandatory: true },
   { key: "property", label: "Property", mandatory: true },
   { key: "rewards", label: "Travio Rewards" },
   { key: "preferred", label: "Preferred" },

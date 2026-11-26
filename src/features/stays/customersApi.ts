@@ -3,19 +3,25 @@
 // Remove this directive once the file is typed — `npm run typecheck` then enforces it.
 /**
  * Stays customers (chat) API — the Stays mirror of `features/chat/api.js`.
- * Chat is supplier/customer scoped, not tour scoped, so the live branch uses
- * the shared `/chat/*` endpoints the Experiences dashboard already uses.
+ * The shared chat store is product-scoped: every Stays read asks for
+ * `domain=stays`, so tour conversations on the same supplier account never
+ * appear in this workspace.
  */
 import api from "@/lib/axios";
 import { staysMock } from "./mock/store";
 import { staysUsesMockData } from "./api";
 
-const BASE = "/chat";
+const BASE = "/stays/supplier";
 const requestConfig = { skipGlobalErrorHandler: true };
 
 export async function listStaysConversations() {
   if (staysUsesMockData) return staysMock.listConversations();
-  const res = await api.get(`${BASE}/conversations`, requestConfig);
+  const res = await api.get(`${BASE}/conversations`, {
+    ...requestConfig,
+    // Only the Stays vertical. The same account can also run Experiences
+    // chats, and those must never appear in this workspace.
+    params: { domain: "stays" },
+  });
   return res.data?.data?.conversations || [];
 }
 

@@ -6,7 +6,7 @@ export { Button, IconButton, type ButtonProps, type IconButtonProps } from "./bu
 export { Card, CardHeader, CardBody, CardFooter, type CardProps } from "./card";
 export { Badge, StatusBadge, type BadgeProps, type StatusBadgeProps } from "./badge";
 export { Field, FieldLabel, type FieldProps } from "./field";
-export { Input, Textarea, NativeSelect, type InputProps, type TextareaProps, type NativeSelectProps } from "./input";
+export { Input, Textarea, type InputProps, type TextareaProps } from "./input";
 export { Checkbox, type CheckboxProps } from "./checkbox";
 export { Switch, type SwitchProps } from "./switch";
 export { Avatar, type AvatarProps } from "./avatar";
@@ -28,8 +28,9 @@ export {
   type ConfirmDialogProps,
 } from "./dialog";
 export { Sheet, SheetTrigger, SheetClose, SheetContent, type SheetContentProps } from "./sheet";
-export { Tabs, TabsList, TabsTrigger, TabsContent, ScrollFade } from "./tabs";
+export { Tabs, TabsList, TabsTrigger, TabsContent, ScrollFade, TAB_PANEL_TRANSITION } from "./tabs";
 export { Tooltip, Popover, PopoverTrigger, PopoverAnchor, PopoverClose, PopoverContent } from "./tooltip";
+export { Calendar, type CalendarProps } from "./calendar";
 export { EmptyState, ErrorState, UnavailableState } from "./states";
 export { Pagination, type PaginationProps } from "./pagination";
 export { DataTable, type DataColumn, type DataTableProps } from "./data-table";

@@ -18,7 +18,7 @@ import { HEADER_ICON_BUTTON } from "./shell";
  * navigation the sidebar shows, so search never offers a page that would 403.
  */
 type IconComponent = ComponentType<{ size?: number; className?: string }>;
-type NavChild = { label: string; tab: string; keywords?: string[] };
+type NavChild = { label: string; tab?: string; section?: string; keywords?: readonly string[]; badge?: string };
 type NavItem = {
   label: string;
   path: string;
@@ -34,10 +34,15 @@ function flatten(items: NavItem[]): FlatItem[] {
   for (const item of items) {
     out.push({ label: item.label, path: item.path, icon: item.icon, keywords: item.keywords || [] });
     for (const child of item.children || []) {
+      const href = child.tab
+        ? `${item.path}?tab=${encodeURIComponent(child.tab)}`
+        : child.section
+          ? `${item.path}?section=${encodeURIComponent(child.section)}`
+          : item.path;
       out.push({
         label: child.label,
         parent: item.label,
-        path: `${item.path}?tab=${child.tab}`,
+        path: href,
         icon: item.icon,
         keywords: [...(item.keywords || []), ...(child.keywords || [])],
       });
@@ -97,7 +102,14 @@ export default function SearchDropdown() {
     const allowed = (STAYS_NAV_ITEMS as NavItem[])
       .filter((item) => !item.permission || hasPermission(item.permission))
       .map((item) =>
-        item.children ? { ...item, children: item.children.filter((child) => canOpenSettingsTab(hasPermission, child.tab)) } : item,
+        item.children
+          ? {
+              ...item,
+              children: item.children.filter((child) =>
+                child.tab ? canOpenSettingsTab(hasPermission, child.tab) : true,
+              ),
+            }
+          : item,
       );
     return flatten(allowed);
   }, [hasPermission]);

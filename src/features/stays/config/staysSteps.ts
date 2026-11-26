@@ -4,15 +4,14 @@
  * `scripts/booking-host-crawl/STEP-MAP.md`) and grouped into the supplier's
  * five working categories.
  *
- * Seventeen steps across five sections. Step 1, "Category & property type",
+ * Sixteen steps across five sections. Step 1, "Category & property type",
  * is the pre-builder intro chain — the four category cards and their
  * follow-up questions — so it is flagged `preBuilder` and has no builder
  * page; the draft is created at the end of the chain and the builder opens at
- * step 2. Basic Information (location, channel manager), Photos, Property
- * Setup (languages, house rules, property name, host profile, property
- * details, amenities, services, booking preference and payments), Pricing and
- * Calendar (price per night, rate plans, availability), and finally Review &
- * Submit.
+ * step 2. Basic Information (location), Photos, Property Setup (languages,
+ * house rules, property name, host profile, property details, amenities,
+ * services, booking preference and payments), Pricing and Calendar (price per
+ * night, rate plans, availability), and finally Review & Submit.
  *
  * `stepId` slugs drive the builder URL (`?section=&step=`), so deep links and
  * refreshes reopen the same step. `fullBleed` steps render without the padded
@@ -48,17 +47,6 @@ export const STAYS_BUILDER_STEPS = [
   },
   {
     id: 3,
-    label: "Channel manager",
-    sectionId: "basic-information",
-    stepId: "channel-manager",
-    hint: "Connect the listing to the tool that keeps rates and availability in sync.",
-    // Renders its own "Connect to a channel manager" heading and reference
-    // footer (back arrow + Continue), so the standard ones are skipped.
-    hideHeader: true,
-    hideFooter: true,
-  },
-  {
-    id: 4,
     label: "Photos",
     sectionId: "photos",
     stepId: "photos",
@@ -69,7 +57,7 @@ export const STAYS_BUILDER_STEPS = [
     hideFooter: true,
   },
   {
-    id: 5,
+    id: 4,
     label: "Languages",
     sectionId: "property-setup",
     stepId: "languages",
@@ -80,7 +68,7 @@ export const STAYS_BUILDER_STEPS = [
     hideFooter: true,
   },
   {
-    id: 6,
+    id: 5,
     label: "House rules",
     sectionId: "property-setup",
     stepId: "house-rules",
@@ -91,7 +79,7 @@ export const STAYS_BUILDER_STEPS = [
     hideFooter: true,
   },
   {
-    id: 7,
+    id: 6,
     label: "Property name",
     sectionId: "property-setup",
     stepId: "identity",
@@ -102,7 +90,7 @@ export const STAYS_BUILDER_STEPS = [
     hideFooter: true,
   },
   {
-    id: 8,
+    id: 7,
     label: "Host profile",
     sectionId: "property-setup",
     stepId: "host-profile",
@@ -113,7 +101,7 @@ export const STAYS_BUILDER_STEPS = [
     hideFooter: true,
   },
   {
-    id: 9,
+    id: 8,
     label: "Property details",
     sectionId: "property-setup",
     stepId: "property-details",
@@ -124,7 +112,7 @@ export const STAYS_BUILDER_STEPS = [
     hideFooter: true,
   },
   {
-    id: 10,
+    id: 9,
     label: "Amenities",
     sectionId: "property-setup",
     stepId: "amenities",
@@ -135,7 +123,7 @@ export const STAYS_BUILDER_STEPS = [
     hideFooter: true,
   },
   {
-    id: 11,
+    id: 10,
     label: "Services",
     sectionId: "property-setup",
     stepId: "services",
@@ -146,7 +134,7 @@ export const STAYS_BUILDER_STEPS = [
     hideFooter: true,
   },
   {
-    id: 12,
+    id: 11,
     label: "How you receive bookings",
     sectionId: "property-setup",
     stepId: "booking-preference",
@@ -157,14 +145,14 @@ export const STAYS_BUILDER_STEPS = [
     hideFooter: true,
   },
   {
-    id: 13,
+    id: 12,
     label: "Payments & invoicing",
     sectionId: "property-setup",
     stepId: "payments",
     hint: "Choose how guests pay and who the invoice is addressed to.",
   },
   {
-    id: 14,
+    id: 13,
     label: "Price per night",
     sectionId: "pricing-calendar",
     stepId: "price-per-night",
@@ -175,7 +163,7 @@ export const STAYS_BUILDER_STEPS = [
     hideFooter: true,
   },
   {
-    id: 15,
+    id: 14,
     label: "Rate plans",
     sectionId: "pricing-calendar",
     stepId: "rates",
@@ -186,7 +174,7 @@ export const STAYS_BUILDER_STEPS = [
     hideFooter: true,
   },
   {
-    id: 16,
+    id: 15,
     label: "Availability",
     sectionId: "pricing-calendar",
     stepId: "availability",
@@ -197,7 +185,7 @@ export const STAYS_BUILDER_STEPS = [
     hideFooter: true,
   },
   {
-    id: 17,
+    id: 16,
     label: "Open for bookings",
     sectionId: "review-submit",
     stepId: "review",

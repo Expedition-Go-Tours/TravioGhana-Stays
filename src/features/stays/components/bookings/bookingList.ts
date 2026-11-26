@@ -12,7 +12,7 @@ export const BOOKING_TABS = [
   { value: "new", label: "New", statuses: ["New"] },
   { value: "confirmed", label: "Confirmed", statuses: ["Confirmed"] },
   { value: "checked-in", label: "Checked in", statuses: ["Checked in"] },
-  { value: "completed", label: "Completed", statuses: ["Completed"] },
+  { value: "completed", label: "Checked-out", statuses: ["Completed"] },
   // No-shows sit with cancellations: both are stays that did not happen.
   { value: "cancelled", label: "Cancelled", statuses: ["Cancelled", "No-show"] },
 ] as const satisfies readonly { value: string; label: string; statuses: readonly BookingStatus[] | null }[];
@@ -142,10 +142,10 @@ export type BookingAction = {
   destructive?: boolean;
 };
 
-const CANCEL: BookingAction = { to: "Cancelled", label: "Cancel booking", done: "Booking cancelled", destructive: true };
+const CANCEL: BookingAction = { to: "Cancelled", label: "Cancel reservation", done: "Reservation cancelled", destructive: true };
 
 export const BOOKING_ACTIONS: Record<BookingStatus, BookingAction[]> = {
-  New: [{ to: "Confirmed", label: "Confirm booking", done: "Booking confirmed" }, CANCEL],
+  New: [{ to: "Confirmed", label: "Confirm reservation", done: "Reservation confirmed" }, CANCEL],
   Confirmed: [{ to: "Checked in", label: "Check in guest", done: "Guest checked in" }, CANCEL],
   "Checked in": [{ to: "Completed", label: "Mark as completed", done: "Stay marked as completed" }],
   Completed: [],

@@ -128,7 +128,7 @@ describe("PropertyBuilderPage — Location step", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("location").textContent).toMatch(/step=channel-manager/);
+      expect(screen.getByTestId("location").textContent).toMatch(/step=photos/);
     });
   });
 });
@@ -167,20 +167,6 @@ describe("PropertyBuilderPage — sidebar navigation", () => {
   });
 });
 
-describe("PropertyBuilderPage — Channel manager step", () => {
-  it("uses the step's own reference footer instead of the builder footer", async () => {
-    const created = await staysMock.createProperty({ name: "Channel Property" });
-    renderBuilder(
-      `/stays/properties/build/${created.id}?section=basic-information&step=channel-manager`,
-    );
-
-    expect(await screen.findByText("Connect to a channel manager")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Back" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Continue" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /save & continue/i })).toBeNull();
-  });
-});
-
 describe("PropertyBuilderPage — publish validation", () => {
   it("sends the supplier to Room types when the property has none", async () => {
     const user = userEvent.setup();
@@ -193,7 +179,7 @@ describe("PropertyBuilderPage — publish validation", () => {
       lat: 5.6,
       lng: -0.18,
       longStays: "No",
-      step: 16,
+      step: 15,
       agreement: { certifyBusiness: true, certifyTerms: true },
     });
 
@@ -235,7 +221,7 @@ describe("PropertyBuilderPage — publish validation", () => {
       lat: 5.6,
       lng: -0.18,
       longStays: "No",
-      step: 16,
+      step: 15,
       agreement: { certifyBusiness: true, certifyTerms: true },
       rooms: [room],
       ratePlans: [defaultPlanForRoom(room)],
