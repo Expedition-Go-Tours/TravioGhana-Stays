@@ -1,11 +1,18 @@
 import { Check } from "@/features/stays/icons";
 
-const STEPS = ["Promotion settings", "Select properties", "Check and confirm"];
+const STEPS = ["Select properties", "Check and confirm"];
 
-export default function PromotionStepper({ current }: { current: 1 | 2 | 3 }) {
+export default function PromotionStepper({
+  current,
+  firstLabel = "Promotion settings",
+}: {
+  current: 1 | 2 | 3;
+  firstLabel?: string;
+}) {
+  const steps = [firstLabel, ...STEPS];
   return (
     <ol className="mt-5 flex items-center gap-2 sm:mt-6 sm:gap-4">
-      {STEPS.map((step, index) => {
+      {steps.map((step, index) => {
         const number = index + 1;
         const active = number === current;
         const complete = number < current;

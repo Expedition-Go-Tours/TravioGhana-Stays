@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/:path*",
+      "destination": "https://api.travioghana.com/api/:path*"
+    },
+    {
       "source": "/confirm/:token",
       "destination": "https://api.travioghana.com/api/suppliers/settings/notification-recipients/verify?token=:token"
     },

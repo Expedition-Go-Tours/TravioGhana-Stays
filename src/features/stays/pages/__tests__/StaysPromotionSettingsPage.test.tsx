@@ -105,6 +105,7 @@ describe("select properties step", () => {
     ).toBeTruthy();
     expect(screen.getByText("We couldn't find any properties that match your search")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Check and confirm" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Clear property search" })).toBeTruthy();
 
     await user.type(screen.getByLabelText("Search for properties"), "Akwaaba");
     await waitFor(() => expect(screen.getByRole("checkbox", { name: "Akwaaba Coast Hotel" })).toBeTruthy());
@@ -114,5 +115,32 @@ describe("select properties step", () => {
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { level: 1, name: "Add a new promotion" })).toBeTruthy();
     expect(screen.getByText("Audience")).toBeTruthy();
+  });
+
+  it("reviews the chosen details and lets settings be edited", async () => {
+    const user = userEvent.setup();
+    renderPage("basic-deal");
+
+    await user.click(screen.getByRole("button", { name: "Select properties" }));
+    await user.type(screen.getByLabelText("Search for properties"), "Akwaaba");
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Akwaaba Coast Hotel" })).toBeTruthy());
+    await user.click(screen.getByRole("checkbox", { name: "Akwaaba Coast Hotel" }));
+    await user.click(screen.getByRole("button", { name: "Check and confirm" }));
+
+    expect(screen.getByRole("heading", { name: "Check and confirm" })).toBeTruthy();
+    expect(screen.getByText("Everyone")).toBeTruthy();
+    expect(screen.getByText("10%")).toBeTruthy();
+    expect(screen.getByText("Basic Deal")).toBeTruthy();
+    expect(screen.getByText("Akwaaba Coast Hotel")).toBeTruthy();
+
+    await user.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+    expect(screen.getByRole("heading", { name: "Audience" })).toBeTruthy();
+    await user.click(screen.getByRole("radio", { name: /Members and newsletter subscribers only/ }));
+    await user.click(screen.getByRole("button", { name: "Select properties" }));
+    await user.click(screen.getByRole("button", { name: "Check and confirm" }));
+
+    expect(
+      screen.getByText("Members and newsletter subscribers only (Secret deal)"),
+    ).toBeTruthy();
   });
 });

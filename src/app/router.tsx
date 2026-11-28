@@ -1,3 +1,5 @@
+/* eslint-disable react-refresh/only-export-components -- lazy route components live with the router. */
+import { lazy } from "react";
 import { createBrowserRouter, Navigate, type RouteObject } from "react-router-dom";
 import AppShell from "@/components/layout/AppShell";
 import ProtectedRoute from "@/components/shared/ProtectedRoute";
@@ -7,8 +9,8 @@ import GuestRoute from "@/components/shared/GuestRoute";
 import RootLayout from "./RootLayout";
 
 // Stays workspace — property suppliers.
-import StaysDashboardPage from "@/features/stays/pages/StaysDashboardPage";
-import PropertiesListPage from "@/features/stays/pages/PropertiesListPage";
+// Sidebar destinations are code-split so each navigation can show the shared
+// page skeleton while its chunk loads. Builder/sub-pages stay eager.
 import PropertyPreviewPage from "@/features/stays/pages/PropertyPreviewPage";
 import PropertyBuilderPage from "@/features/stays/pages/PropertyBuilderPage";
 import PropertyTypeChooserPage from "@/features/stays/pages/PropertyTypeChooserPage";
@@ -20,21 +22,9 @@ import PropertyHotelCategoryPage from "@/features/stays/pages/PropertyHotelCateg
 import PropertyAlternativeCategoryPage from "@/features/stays/pages/PropertyAlternativeCategoryPage";
 import PropertyConfirmPage from "@/features/stays/pages/PropertyConfirmPage";
 import PropertyOtherListingsPage from "@/features/stays/pages/PropertyOtherListingsPage";
-import StaysBookingsPage from "@/features/stays/pages/StaysBookingsPage";
-import StaysAvailabilityPage from "@/features/stays/pages/StaysAvailabilityPage";
-import StaysRatesPage from "@/features/stays/pages/StaysRatesPage";
-import StaysOffersPage from "@/features/stays/pages/StaysOffersPage";
 import StaysPropertyDealPage from "@/features/stays/pages/StaysPropertyDealPage";
 import StaysPromotionSettingsPage from "@/features/stays/pages/StaysPromotionSettingsPage";
 import StaysOfferBuilderPage from "@/features/stays/pages/StaysOfferBuilderPage";
-import StaysCancellationPage from "@/features/stays/pages/StaysCancellationPage";
-import StaysFinancePage from "@/features/stays/pages/StaysFinancePage";
-import StaysCustomersPage from "@/features/stays/pages/StaysCustomersPage";
-import StaysReviewsPage from "@/features/stays/pages/StaysReviewsPage";
-import StaysAnalyticsPage from "@/features/stays/pages/StaysAnalyticsPage";
-import StaysNotificationsPage from "@/features/stays/pages/StaysNotificationsPage";
-import StaysVerificationPage from "@/features/stays/pages/StaysVerificationPage";
-import StaysSettingsPage from "@/features/stays/pages/StaysSettingsPage";
 
 import AuthCallback from "@/features/auth/pages/AuthCallback";
 import LoginPage from "@/features/auth/pages/LoginPage";
@@ -45,6 +35,21 @@ import NotFoundPage from "@/pages/errors/NotFoundPage";
 import ServerErrorPage from "@/pages/errors/ServerErrorPage";
 import ForbiddenPage from "@/pages/errors/ForbiddenPage";
 import NetworkErrorPage from "@/pages/errors/NetworkErrorPage";
+
+const StaysDashboardPage = lazy(() => import("@/features/stays/pages/StaysDashboardPage"));
+const PropertiesListPage = lazy(() => import("@/features/stays/pages/PropertiesListPage"));
+const StaysBookingsPage = lazy(() => import("@/features/stays/pages/StaysBookingsPage"));
+const StaysCustomersPage = lazy(() => import("@/features/stays/pages/StaysCustomersPage"));
+const StaysAvailabilityPage = lazy(() => import("@/features/stays/pages/StaysAvailabilityPage"));
+const StaysRatesPage = lazy(() => import("@/features/stays/pages/StaysRatesPage"));
+const StaysOffersPage = lazy(() => import("@/features/stays/pages/StaysOffersPage"));
+const StaysCancellationPage = lazy(() => import("@/features/stays/pages/StaysCancellationPage"));
+const StaysFinancePage = lazy(() => import("@/features/stays/pages/StaysFinancePage"));
+const StaysReviewsPage = lazy(() => import("@/features/stays/pages/StaysReviewsPage"));
+const StaysAnalyticsPage = lazy(() => import("@/features/stays/pages/StaysAnalyticsPage"));
+const StaysNotificationsPage = lazy(() => import("@/features/stays/pages/StaysNotificationsPage"));
+const StaysVerificationPage = lazy(() => import("@/features/stays/pages/StaysVerificationPage"));
+const StaysSettingsPage = lazy(() => import("@/features/stays/pages/StaysSettingsPage"));
 
 /**
  * Dev-only tools. `import.meta.env.DEV` is replaced at build time, so in a

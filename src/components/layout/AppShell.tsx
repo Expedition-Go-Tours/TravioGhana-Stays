@@ -1,9 +1,12 @@
+import { Suspense } from "react";
 import { Outlet, useMatches } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/stores/sidebarStore";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import PageContainer from "./PageContainer";
+import PageSkeleton from "./PageSkeleton";
+import PageTransition from "./PageTransition";
 import { NAV_WIDTH_CLASSES } from "./shell";
 
 /**
@@ -31,7 +34,11 @@ export default function AppShell() {
       <Header />
       <main id="main" tabIndex={-1} className="pt-16 outline-none transition-[padding] duration-200 md:pl-[var(--nav-w)]">
         <PageContainer bleed={isBleed}>
-          <Outlet />
+          <PageTransition fadeOnly={isBleed}>
+            <Suspense fallback={<PageSkeleton />}>
+              <Outlet />
+            </Suspense>
+          </PageTransition>
         </PageContainer>
       </main>
     </div>

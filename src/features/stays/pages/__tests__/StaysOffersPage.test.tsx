@@ -2,8 +2,9 @@
  * Special Offers — the promotion catalogue landing page.
  */
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 import StaysOffersPage from "../StaysOffersPage";
@@ -16,14 +17,17 @@ function LocationProbe() {
 }
 
 function renderPage() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter initialEntries={["/stays/special-offers"]}>
-      <LocationProbe />
-      <Routes>
-        <Route path="/stays/special-offers" element={<StaysOffersPage />} />
-        <Route path="/stays/special-offers/property-deal" element={<StaysPropertyDealPage />} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/stays/special-offers"]}>
+        <LocationProbe />
+        <Routes>
+          <Route path="/stays/special-offers" element={<StaysOffersPage />} />
+          <Route path="/stays/special-offers/property-deal" element={<StaysPropertyDealPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -66,6 +70,24 @@ describe("StaysOffersPage — promotion catalogue", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Create a New Property Deal" })).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2, name: "Settings" })).toBeTruthy();
     expect(screen.getByText("The first 3 bookings during the first 90 days will get a 20% discount")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Select properties" }));
+    expect(screen.getByRole("heading", { name: "Select properties to make changes to" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Check and confirm" })).toBeDisabled();
+
+    await user.type(screen.getByLabelText("Search for properties"), "Akwaaba");
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Akwaaba Coast Hotel" })).toBeTruthy());
+    await user.click(screen.getByRole("checkbox", { name: "Akwaaba Coast Hotel" }));
+    await user.click(screen.getByRole("button", { name: "Check and confirm" }));
+
+    expect(screen.getByRole("heading", { name: "Check and confirm" })).toBeTruthy();
+    expect(screen.getByText("Deal settings")).toBeTruthy();
+    expect(screen.getByText("Akwaaba Coast Hotel")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Select properties to make changes to" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { level: 2, name: "Settings" })).toBeTruthy();
   });
 
   it("leaves the other Take action buttons inert until their pages exist", async () => {

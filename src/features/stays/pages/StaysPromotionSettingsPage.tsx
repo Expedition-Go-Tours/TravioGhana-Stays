@@ -1,27 +1,24 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 
-import { Button, Checkbox, Input } from "@/components/ui";
+import { Button, Input } from "@/components/ui";
 import { Calendar } from "@/components/ui/calendar";
 import DatePicker from "@/components/forms/DatePicker";
 import DateRangePicker from "@/components/forms/DateRangePicker";
 import StaysCard from "../components/StaysCard";
 import PromotionStepper from "../components/promotions/PromotionStepper";
+import SelectPropertiesStep from "../components/promotions/SelectPropertiesStep";
+import PromotionReviewStep, {
+  type PromotionReviewSection,
+} from "../components/promotions/PromotionReviewStep";
 import LengthOfStayDialog, {
   type LengthOfStayValue,
 } from "../components/promotions/LengthOfStayDialog";
-import { listProperties, STAYS_KEYS } from "../api";
 import { fromISODate, shiftISOMonths, toISODate, todayISO } from "../utils/dates";
-import {
-  ChevronDown,
-  FileText,
-  Info,
-  X,
-} from "@/features/stays/icons";
+import { Info } from "@/features/stays/icons";
 import type { PromotionDealConfig, PromotionDealKind } from "../config/promotionDeals";
 import { PROMOTION_DEALS } from "../config/promotionDeals";
 
@@ -316,138 +313,6 @@ function LengthOfStayCard({
   );
 }
 
-function SelectPropertiesStep({
-  selected,
-  onSelectedChange,
-  onBack,
-}: {
-  selected: string[];
-  onSelectedChange: (ids: string[]) => void;
-  onBack: () => void;
-}) {
-  const [expanded, setExpanded] = useState(true);
-  const [search, setSearch] = useState("");
-  const { data: properties = [] } = useQuery({
-    queryKey: STAYS_KEYS.properties(),
-    queryFn: () => listProperties(),
-    staleTime: 30_000,
-  });
-
-  const tokens = search.trim().toLowerCase().split(/[\s,]+/).filter(Boolean);
-  const filtered = tokens.length
-    ? properties.filter((property) => {
-        const haystack = [
-          property.id,
-          property.name,
-          property.city,
-          property.region,
-          property.country,
-          property.address,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return tokens.every((token) => haystack.includes(token));
-      })
-    : [];
-
-  const toggle = (id: string) =>
-    onSelectedChange(selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id]);
-
-  return (
-    <div className="space-y-5">
-      <StaysCard className="rounded-md p-0 shadow-none">
-        <button
-          type="button"
-          onClick={() => setExpanded((current) => !current)}
-          aria-expanded={expanded}
-          className="flex w-full items-center justify-between gap-4 px-5 py-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-6"
-        >
-          <h2 className="text-xl font-bold text-ink">Select properties to make changes to</h2>
-          <ChevronDown
-            size={20}
-            className={`shrink-0 text-muted transition-transform ${expanded ? "rotate-180" : ""}`}
-            aria-hidden="true"
-          />
-        </button>
-        {expanded && (
-          <div className="border-t border-hairline px-5 py-5 sm:px-6">
-            <div className="rounded-md border border-hairline p-5 sm:ml-auto sm:max-w-xl">
-              <p className="text-sm font-semibold text-ink">Search for properties</p>
-              <div className="relative mt-2">
-                <Input
-                  aria-label="Search for properties"
-                  placeholder="Paste or enter a name, location or multiple property IDs"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  className="pr-10"
-                />
-                {search && (
-                  <button
-                    type="button"
-                    aria-label="Clear property search"
-                    onClick={() => setSearch("")}
-                    className="absolute inset-y-0 right-2 grid w-8 place-items-center text-muted hover:text-ink"
-                  >
-                    <X size={16} />
-                  </button>
-                )}
-              </div>
-              <button
-                type="button"
-                className="mt-2 text-sm font-medium text-brand-ink underline-offset-2 hover:underline"
-              >
-                How can I paste multiple property IDs?
-              </button>
-            </div>
-
-            {filtered.length === 0 ? (
-              <div className="flex flex-col items-center gap-4 py-10 text-center">
-                <FileText size={36} className="text-muted" aria-hidden="true" />
-                <p className="text-sm text-ink/80 sm:text-base">
-                  We couldn&apos;t find any properties that match your search
-                </p>
-              </div>
-            ) : (
-              <div className="mt-4 grid gap-1 rounded-md border border-hairline p-2 sm:grid-cols-2">
-                {filtered.map((property) => (
-                  <Checkbox
-                    key={property.id}
-                    checked={selected.includes(property.id)}
-                    onChange={() => toggle(property.id)}
-                    label={property.name}
-                    description={[property.city, property.region, property.id].filter(Boolean).join(" · ")}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </StaysCard>
-
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Button asChild variant="secondary" className="w-full sm:w-auto">
-          <Link to="/stays/special-offers">Cancel</Link>
-        </Button>
-        <div className="flex flex-col-reverse gap-2 sm:flex-row">
-          <Button type="button" onClick={onBack} className="w-full sm:w-auto">
-            Back
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            disabled={selected.length === 0}
-            onClick={() => toast.info("Check and confirm will be added next")}
-            className="w-full disabled:bg-surface-strong disabled:text-muted disabled:opacity-100 disabled:shadow-none sm:w-auto"
-          >
-            Check and confirm
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function StaysPromotionSettingsPage({ kind }: { kind: PromotionDealKind }) {
   const config = PROMOTION_DEALS[kind];
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -477,6 +342,17 @@ export default function StaysPromotionSettingsPage({ kind }: { kind: PromotionDe
     to: fromISODate(config.lateEscape?.calendarTo ?? shiftISOMonths(today, 3)),
   }));
   const [availableMonths, setAvailableMonths] = useState<string[]>(LATE_MONTHS.map((month) => month.value));
+  const editTargetRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (step !== 1) return;
+    const target = editTargetRef.current;
+    if (!target) return;
+    editTargetRef.current = null;
+    requestAnimationFrame(() => {
+      document.getElementById(target)?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    });
+  }, [step]);
 
   const toggleWeekday = (day: number) =>
     setWeekdays((current) =>
@@ -507,6 +383,101 @@ export default function StaysPromotionSettingsPage({ kind }: { kind: PromotionDe
     setAvailableMonths((current) =>
       current.includes(value) ? current.filter((month) => month !== value) : [...current, value],
     );
+
+  const goToSettings = (sectionId: string) => {
+    editTargetRef.current = sectionId;
+    setStep(1);
+  };
+
+  const weekdaySummary = WEEKDAYS.filter((day) => weekdays.includes(day.value))
+    .map((day) => day.short)
+    .join(", ");
+  const audienceSummary =
+    audience === "everyone" ? "Everyone" : "Members and newsletter subscribers only (Secret deal)";
+  const bookWindowSummary =
+    config.bookWindow === "minimum-days"
+      ? `${bookDays} days minimum before check-in`
+      : config.bookWindow === "maximum-days-hours"
+        ? bookMode === "days"
+          ? `${bookDays} days maximum before check-in`
+          : `${bookHours} hours maximum before check-in`
+        : null;
+  const lengthOfStaySummary =
+    lengthValue === "rate-plans" ? "Match to rate plans" : `Minimum ${Math.max(1, Number(minimumNights) || 1)} nights`;
+  const monthSummary =
+    LATE_MONTHS.filter((month) => availableMonths.includes(month.value))
+      .map((month) => month.label)
+      .join(", ") || "None";
+
+  const reviewSections: PromotionReviewSection[] = config.lateEscape
+    ? [
+        {
+          title: "Book dates",
+          rows: [{ label: "Book dates", value: config.lateEscape.bookDates }],
+        },
+        {
+          title: "Discount",
+          rows: [{ label: "Discount", value: `${discount}%` }],
+          onEdit: () => goToSettings("late-discount"),
+        },
+        {
+          title: "Stay dates",
+          rows: [
+            { label: "Dates", value: lateSummary },
+            { label: "Days of week", value: weekdaySummary },
+            { label: "Available only during", value: monthSummary },
+          ],
+          onEdit: () => goToSettings("late-stay-dates"),
+        },
+        {
+          title: "Promotion name",
+          rows: [{ label: "Name", value: name }],
+          onEdit: () => goToSettings("promotion-name"),
+        },
+      ]
+    : [
+        ...(bookWindowSummary
+          ? [
+              {
+                title: "Book window",
+                rows: [{ label: "Booking window", value: bookWindowSummary }],
+                onEdit: () => goToSettings("book-window"),
+              },
+            ]
+          : []),
+        {
+          title: "Audience",
+          rows: [{ label: "Visible to", value: audienceSummary }],
+          onEdit: () => goToSettings("audience"),
+        },
+        {
+          title: "Discount",
+          rows: [{ label: "Discount", value: `${discount}%` }],
+          onEdit: () => goToSettings("discount"),
+        },
+        {
+          title: "Stay dates",
+          rows: [
+            { label: "Dates", value: dateSummary },
+            { label: "Days of week", value: weekdaySummary },
+          ],
+          onEdit: () => goToSettings("stay-dates"),
+        },
+        {
+          title: "Promotion name",
+          rows: [{ label: "Name", value: name }],
+          onEdit: () => goToSettings("promotion-name"),
+        },
+        ...(config.lengthOfStay
+          ? [
+              {
+                title: "Length of stay",
+                rows: [{ label: "Minimum stay", value: lengthOfStaySummary }],
+                onEdit: () => goToSettings("length-of-stay"),
+              },
+            ]
+          : []),
+      ];
 
   const stayDatesCard = (
     <StaysCard className="rounded-md shadow-none">
@@ -596,6 +567,24 @@ export default function StaysPromotionSettingsPage({ kind }: { kind: PromotionDe
     </div>
   );
 
+  if (step === 3) {
+    return (
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">Add a new promotion</h1>
+        <PromotionStepper current={3} />
+        <div className="mt-5 sm:mt-6">
+          <PromotionReviewStep
+            sections={reviewSections}
+            selectedPropertyIds={selectedProperties}
+            onEditProperties={() => setStep(2)}
+            onBack={() => setStep(2)}
+            onCreate={() => toast.info("Promotion creation will be available when the backend endpoint is connected")}
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (step === 2) {
     return (
       <div>
@@ -606,6 +595,7 @@ export default function StaysPromotionSettingsPage({ kind }: { kind: PromotionDe
             selected={selectedProperties}
             onSelectedChange={setSelectedProperties}
             onBack={() => setStep(1)}
+            onContinue={() => setStep(3)}
           />
         </div>
       </div>
@@ -633,8 +623,11 @@ export default function StaysPromotionSettingsPage({ kind }: { kind: PromotionDe
                 <p className="text-sm text-ink/80 sm:text-base">{config.lateEscape.bookDates}</p>
               </div>
             </StaysCard>
-            <DiscountCard config={config} value={discount} onChange={setDiscount} />
-            <StaysCard className="rounded-md shadow-none">
+            <div id="late-discount" className="scroll-mt-24">
+              <DiscountCard config={config} value={discount} onChange={setDiscount} />
+            </div>
+            <div id="late-stay-dates" className="scroll-mt-24">
+              <StaysCard className="rounded-md shadow-none">
               <CardHeading>Stay dates</CardHeading>
               <div className="mt-3">
                 <InfoBox>
@@ -690,29 +683,44 @@ export default function StaysPromotionSettingsPage({ kind }: { kind: PromotionDe
                 </InfoBox>
               </div>
             </StaysCard>
-            <NameCard
-              title="What do you want to name this promotion?"
-              value={name}
-              onChange={setName}
-            />
+            </div>
+            <div id="promotion-name" className="scroll-mt-24">
+              <NameCard
+                title="What do you want to name this promotion?"
+                value={name}
+                onChange={setName}
+              />
+            </div>
           </>
         ) : (
           <>
-            <BookWindowCard
-              config={config}
-              days={bookDays}
-              onDaysChange={setBookDays}
-              mode={bookMode}
-              onModeChange={setBookMode}
-              hours={bookHours}
-              onHoursChange={setBookHours}
-            />
-            <AudienceCard audience={audience} onChange={setAudience} />
-            <DiscountCard config={config} value={discount} onChange={setDiscount} />
-            {stayDatesCard}
-            <NameCard title="Promotion name" value={name} onChange={setName} />
+            <div id="book-window" className="scroll-mt-24">
+              <BookWindowCard
+                config={config}
+                days={bookDays}
+                onDaysChange={setBookDays}
+                mode={bookMode}
+                onModeChange={setBookMode}
+                hours={bookHours}
+                onHoursChange={setBookHours}
+              />
+            </div>
+            <div id="audience" className="scroll-mt-24">
+              <AudienceCard audience={audience} onChange={setAudience} />
+            </div>
+            <div id="discount" className="scroll-mt-24">
+              <DiscountCard config={config} value={discount} onChange={setDiscount} />
+            </div>
+            <div id="stay-dates" className="scroll-mt-24">
+              {stayDatesCard}
+            </div>
+            <div id="promotion-name" className="scroll-mt-24">
+              <NameCard title="Promotion name" value={name} onChange={setName} />
+            </div>
             {config.lengthOfStay && (
-              <LengthOfStayCard value={lengthValue} nights={minimumNights} onEdit={() => setLengthOpen(true)} />
+              <div id="length-of-stay" className="scroll-mt-24">
+                <LengthOfStayCard value={lengthValue} nights={minimumNights} onEdit={() => setLengthOpen(true)} />
+              </div>
             )}
           </>
         )}

@@ -47,6 +47,19 @@ const isDev = appEnv === 'development';
 // surfaces to users as a misleading "Network Error".
 const DEFAULT_API_BASE_URL = 'https://api.travioghana.com/api';
 
+// Vercel preview/production URLs are not in the API's CORS allow-list. Route
+// those deployments through the same-origin `/api` rewrite in vercel.json so
+// sign-in and API calls work without browser CORS checks.
+function usesVercelApiProxy() {
+  if (typeof window === 'undefined') return false;
+  return /(^|\.)vercel\.app$/i.test(window.location.hostname);
+}
+
+const apiBaseUrl = usesVercelApiProxy()
+  ? '/api'
+  : envString(import.meta.env.VITE_API_BASE_URL, DEFAULT_API_BASE_URL);
+
+
 // Safe env parsing with sensible defaults
 const env = {
   // API
@@ -159,14 +172,14 @@ if (isDev) {
 
 export const config = {
   api: {
-    baseURL: env.VITE_API_BASE_URL,
+    baseURL: apiBaseUrl,
     timeout: env.VITE_API_TIMEOUT,
     retryAttempts: env.VITE_API_RETRY_ATTEMPTS,
   },
 
   auth: {
     provider: env.VITE_AUTH_PROVIDER,
-    apiBaseURL: env.VITE_AUTH_API_BASE_URL,
+    apiBaseURL: usesVercelApiProxy() ? apiBaseUrl : env.VITE_AUTH_API_BASE_URL,
     tokenRefreshInterval: env.VITE_TOKEN_REFRESH_INTERVAL,
     sessionTimeout: env.VITE_SESSION_TIMEOUT,
   },
